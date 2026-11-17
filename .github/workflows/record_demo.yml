@@ -1,0 +1,83 @@
+name: Record Demo (screenshots + video)
+
+on:
+  workflow_dispatch: {}
+
+env:
+  FLUTTER_VERSION: '3.32.0'
+  JAVA_VERSION: '17'
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Get dependencies (local packages first)
+        run: |
+          for package_dir in packages/*/; do
+            if [ -f "$package_dir/pubspec.yaml" ]; then
+              (cd "$package_dir" && flutter pub get)
+            fi
+          done
+          flutter pub get
+
+      - name: Ensure ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update >/dev/null 2>&1
+            sudo apt-get install -y ffmpeg >/dev/null 2>&1
+          fi
+          ffmpeg -version | head -1
+
+      - name: Record demo on Android emulator (walkthrough)
+        run: bash .github/scripts/record_demo_host.sh
+
+      - name: Align screenshots to walkthrough markers
+        if: always()
+        run: python3 .github/scripts/align_demo_screens.py demo/logcat.txt demo/shots demo/screenshots
+
+      - name: Concatenate video segments
+        if: always()
+        run: |
+          cd demo
+          ls -la *.mp4 2>/dev/null || true
+          if ls demo_*.mp4 >/dev/null 2>&1; then
+            for f in demo_*.mp4; do echo "file '$PWD/$f'" >> list.txt; done
+            ffmpeg -y -f concat -safe 0 -i list.txt -c copy demo.mp4 2>/dev/null || \
+              ffmpeg -y -f concat -safe 0 -i list.txt demo.mp4
+            rm -f list.txt
+          fi
+          ls -la demo.mp4 2>/dev/null || echo "no video produced"
+          # keep only the final video in the artifact root
+          rm -f demo_*.mp4
+
+      - name: Upload demo artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dearcocoa-demo
+          path: |
+            demo/screenshots/
+            demo/demo.mp4
+            demo/logcat.txt
+            demo/flutter_test_log.txt
+          retention-days: 30

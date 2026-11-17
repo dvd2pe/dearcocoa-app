@@ -1,3 +1,23 @@
+# DearCocoa
+
+**DearCocoa** is a social wellness platform (private journaling, optional AI-powered
+reflections, mood tracking, community spaces, group conversations, virtual events)
+built on top of the DiaryVault codebase (MIT) with a **Supabase** backend
+(auth, Postgres+RLS, Realtime, Storage, Edge Functions).
+
+- Development plan + resume-from-repo document: **[DEARCOCOA_PLAN.md](DEARCOCOA_PLAN.md)** — read this first.
+- UI/UX, themes, fonts, components: unchanged DiaryVault base. DearCocoa adds a
+  fourth dashboard pane (`DearCocoaPane`) and a social layer behind `DearCocoaAuthGate`.
+- Build: GitHub Actions only (`ci.yml` = analyze+test on push; `build_release.yml`
+  = signed APKs on release). Local builds are NOT supported in this project.
+- Supabase keys are injected at build time via
+  `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`;
+  without keys the app runs as plain local DiaryVault (degraded gracefully).
+- Backend schema: `supabase/migrations/0001_init.sql` (tables + RLS, journal is
+  owner-only), demo data: `supabase/seed.sql`, AI: `supabase/functions/reflections`.
+
+---
+
 # DiaryVault: Private Journal
 
 **Private diary with rich text, cloud backup, sync, and fingerprint lock.**

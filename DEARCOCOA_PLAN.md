@@ -1,7 +1,7 @@
 # DearCocoa × DiaryVault — Piano di sviluppo e documento di ripresa
 
 > **Scopo di questo file**: se la conversazione si perde, TUTTO il contesto per riprendere lo sviluppo è qui.
-> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M9 fatti (CI analyze verde), M10 build APK in corso**.
+> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M9 fatti (CI analyze verde su 9e37065), M10 build APK v0.1.0-dearcocoa in corso**.
 > Known issue upstream: todo_reminder_typing_test IME-driven fallisce (Provider<NotesBloc> mancante nell'harness) - pre-esistente sul base, step test non-bloccante in CI.
 
 ---
@@ -40,7 +40,8 @@
 | Progetto precedente (SUPERATO) | `dvd2pe/dearcocoa` (privato) — base memex GPL, R1-R5, APK 255MB v1.0.39-demo. **Il 18/11 il cliente ha deciso: base = DiaryVault (MIT), UI/UX/colori/font invariati.** Il vecchio repo NON si tocca; si riusano solo i suoi doc di contesto: `REQUIREMENTS.md` (job posting verbatim + 5 domande proposal), `docs/REQUISITI_MVP.md`, `docs/SETUP_SUPABASE.md`, `backend/supabase/seed_demo.sql` (pattern creazione utenti demo auth) |
 | Minuti Actions | i minuti private del piano Free sono ESAURITI → tutta la CI gira su repo pubbliche |
 | Mirror upstream integrale | `dvd2pe/diaryvault` (105 branch, 28 tag, history completa) |
-| Repo build APK | `dvd2pe/diaryvault-apk` — release `2.4.0` con 3 APK firmati (v2 cert CN=DiaryVault,O=dvd2pe,C=IT, valido al 2056, SHA-256 `55:59:48:F7:44:D8:80:BC:34:59:7C:A9:BE:48:6C:EA:24:FB:25:2D:41:DE:82:3A:69:D6:BC:BA:2C:F9:2A:23`) |
+| Repo build APK (base DiaryVault) | `dvd2pe/diaryvault-apk` — release `2.4.0` con 3 APK firmati (v2 cert CN=DiaryVault,O=dvd2pe,C=IT, SHA-256 `55:59:48:F7:44:D8:80:BC:34:59:7C:A9:BE:48:6C:EA:24:FB:25:2D:41:DE:82:3A:69:D6:BC:BA:2C:F9:2A:23`) |
+| Keystore DearCocoa (QUESTA repo) | alias `dearcocoa`, cert CN=DearCocoa,OU=Release,O=dvd2pe,C=IT, SHA-256 `B0:EA:55:A3:88:C0:55:98:F6:F1:44:19:8B:66:56:2C:06:2F:12:F9:D1:51:FC:F7:B5:F8:E8:F0:DF:B8:8E:4F`, password in Actions secrets (NON committare mai in chiaro) — nota: signature diversa dall'APK diaryvault-apk 2.4.0: disinstallare la vecchia prima di installare DearCocoa |
 | Token GitHub | fornito in chat dall'utente (`ghp_…f7k6x`) — **⚠️ revocare/ruotare a fine lavori** (esposto in chat) |
 | Segreti CI diaryvault-apk | `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`, `KEY_ALIAS` (keystore release già caricato) |
 | Toolchain pinnata | Flutter 3.32.0 · Java 17 · Gradle 8.12 · AGP 8.7.3 · Kotlin 2.1.0 · NDK 27.0.12077973 · compileSdk 36 |

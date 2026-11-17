@@ -12,6 +12,14 @@ import 'package:dairy_app/features/notes/presentation/pages/todos_overview_page.
 import 'package:dairy_app/generated/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:dairy_app/core/pages/welcome_page.dart';
+import 'package:dairy_app/features/chat/presentation/pages/chat_room_page.dart';
+import 'package:dairy_app/features/chat/presentation/pages/chat_rooms_page.dart';
+import 'package:dairy_app/features/community/presentation/pages/community_page.dart';
+import 'package:dairy_app/features/events/presentation/pages/events_page.dart';
+import 'package:dairy_app/features/hub/presentation/pages/dearcocoa_auth_gate.dart';
+import 'package:dairy_app/features/hub/presentation/pages/dearcocoa_hub_page.dart';
+import 'package:dairy_app/features/mood/presentation/pages/mood_tracker_page.dart';
+import 'package:dairy_app/features/reflections/presentation/pages/reflections_page.dart';
 
 class RouteGenerator {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -55,6 +63,44 @@ class RouteGenerator {
       return MaterialPageRoute(builder: (_) => const EncryptionSettingsPage());
     } else if (settings.name == EncryptedNotesPage.route) {
       return MaterialPageRoute(builder: (_) => const EncryptedNotesPage());
+    } else if (settings.name == DearCocoaHubPage.route) {
+      return MaterialPageRoute(
+        builder: (_) => DearCocoaAuthGate(
+          child: const DearCocoaHubPage(),
+        ),
+      );
+    } else if (settings.name == MoodTrackerPage.route) {
+      return MaterialPageRoute(
+        builder: (_) => DearCocoaAuthGate(
+          child: const MoodTrackerPage(),
+        ),
+      );
+    } else if (settings.name == ReflectionsPage.route) {
+      return MaterialPageRoute(
+        builder: (_) => DearCocoaAuthGate(
+          child: const ReflectionsPage(),
+        ),
+      );
+    } else if (settings.name == CommunityPage.route) {
+      return MaterialPageRoute(
+        builder: (_) => DearCocoaAuthGate(
+          child: const CommunityPage(),
+        ),
+      );
+    } else if (settings.name == ChatRoomsPage.route) {
+      return MaterialPageRoute(
+        builder: (_) => DearCocoaAuthGate(
+          child: const ChatRoomsPage(),
+        ),
+      );
+    } else if (settings.name == ChatRoomPage.route) {
+      return MaterialPageRoute(builder: (_) => const ChatRoomPage());
+    } else if (settings.name == EventsPage.route) {
+      return MaterialPageRoute(
+        builder: (_) => DearCocoaAuthGate(
+          child: const EventsPage(),
+        ),
+      );
     }
 
     return MaterialPageRoute(

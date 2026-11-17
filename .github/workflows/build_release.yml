@@ -1,0 +1,172 @@
+name: Build and Attach DearCocoa APKs on Release
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to build (optional, uses latest release if not provided)'
+        required: false
+        type: string
+
+env:
+  # Keep in sync with the app toolchain: Gradle 8.12 / AGP 8.7.3 / Kotlin 2.1.0.
+  FLUTTER_VERSION: '3.32.0'
+  JAVA_VERSION: '17'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # `secrets` is NOT available inside step-level `if:`, so the signing
+    # secrets are surfaced as job env vars and steps branch on those.
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || inputs.tag_name || github.ref }}
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter version
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            **/.packages
+            **/.flutter-plugins
+            **/.flutter-plugin-dependencies
+            **/.dart_tool
+          key: flutter-${{ hashFiles('**/pubspec.lock', 'packages/**/pubspec.yaml') }}
+          restore-keys: |
+            flutter-${{ hashFiles('**/pubspec.lock') }}
+            flutter-
+
+      - name: Get dependencies (local packages first)
+        run: |
+          for package_dir in packages/*/; do
+            if [ -f "$package_dir/pubspec.yaml" ]; then
+              (cd "$package_dir" && flutter pub get)
+            fi
+          done
+          flutter pub get
+
+      # The app pins ndkVersion in android/app/build.gradle; install exactly
+      # that version so AGP can strip debug symbols from prebuilt .so files.
+      - name: Install pinned NDK and build-tools
+        run: |
+          NDK_VERSION=$(sed -n 's/^[[:space:]]*ndkVersion[[:space:]]*"\([^"]*\)".*/\1/p' android/app/build.gradle)
+          if [ -z "$NDK_VERSION" ]; then
+            echo "could not parse ndkVersion from android/app/build.gradle" >&2
+            exit 1
+          fi
+          echo "Installing ndk;$NDK_VERSION"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" "build-tools;35.0.0"
+
+      - name: Create keystore and key.properties
+        if: env.KEYSTORE_BASE64 != '' && env.STORE_PASSWORD != '' && env.KEY_PASSWORD != '' && env.KEY_ALIAS != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/keystore.jks
+          cat > android/key.properties << EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=keystore.jks
+          EOF
+
+      - name: Build signed APKs (Supabase keys via dart-define, empty = local-only mode)
+        run: |
+          if [ ! -f "android/key.properties" ]; then
+            echo "Signing configuration is missing; refusing to upload debug APKs as release artifacts" >&2
+            exit 1
+          fi
+          flutter build apk --flavor prod --split-per-abi --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+      - name: List built APKs
+        run: |
+          find build/app/outputs/flutter-apk/ -name "*.apk" -type f
+
+      - name: Get release info
+        id: release_info
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "upload_url=${{ github.event.release.upload_url }}" >> $GITHUB_OUTPUT
+            echo "release_id=${{ github.event.release.id }}" >> $GITHUB_OUTPUT
+          else
+            release_info=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+            upload_url=$(echo "$release_info" | jq -r '.upload_url')
+            release_id=$(echo "$release_info" | jq -r '.id')
+            echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
+            echo "release_id=$release_id" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload arm64-v8a APK
+        if: steps.release_info.outputs.upload_url
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.release_info.outputs.upload_url }}
+          asset_path: build/app/outputs/flutter-apk/app-arm64-v8a-prod-release.apk
+          asset_name: dearcocoa-arm64-v8a-${{ github.event.release.tag_name || inputs.tag_name || 'latest' }}.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload armeabi-v7a APK
+        if: steps.release_info.outputs.upload_url
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.release_info.outputs.upload_url }}
+          asset_path: build/app/outputs/flutter-apk/app-armeabi-v7a-prod-release.apk
+          asset_name: dearcocoa-armeabi-v7a-${{ github.event.release.tag_name || inputs.tag_name || 'latest' }}.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload x86_64 APK
+        if: steps.release_info.outputs.upload_url
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.release_info.outputs.upload_url }}
+          asset_path: build/app/outputs/flutter-apk/app-x86_64-prod-release.apk
+          asset_name: dearcocoa-x86_64-${{ github.event.release.tag_name || inputs.tag_name || 'latest' }}.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload APKs as artifacts (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dearcocoa-apks-${{ github.event.release.tag_name || inputs.tag_name || github.sha }}
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30

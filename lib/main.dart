@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'app/view/app.dart';
 import 'core/dependency_injection/injection_container.dart' as di;
+import 'core/network/supabase_client.dart';
 
 Future<void> main() async {
   GoogleFonts.config.allowRuntimeFetching = false;
@@ -18,6 +19,7 @@ Future<void> main() async {
     [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
   );
   await Firebase.initializeApp();
+  await initSupabase(); // DearCocoa social layer (no-op without keys)
   await di.init();
   runApp(const App());
 }

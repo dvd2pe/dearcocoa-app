@@ -1,4 +1,5 @@
 import 'package:dairy_app/app/themes/theme_extensions/home_page_theme_extensions.dart';
+import 'package:dairy_app/core/widgets/dearcocoa_pane.dart';
 import 'package:dairy_app/core/widgets/security_backup_pane.dart';
 import 'package:dairy_app/core/widgets/today_dashboard_pane.dart';
 import 'package:dairy_app/core/widgets/writing_activity_pane.dart';
@@ -15,7 +16,7 @@ class DashboardPaneCarousel extends StatefulWidget {
 
 class _DashboardPaneCarouselState extends State<DashboardPaneCarousel> {
   static const _paneHeight = 292.0;
-  static const _paneCount = 3;
+  static const _paneCount = 4;
   static const _initialPage = 999999;
 
   final PageController _pageController =
@@ -54,6 +55,7 @@ class _DashboardPaneCarouselState extends State<DashboardPaneCarousel> {
       strings.dashboardToday,
       strings.writingActivity,
       strings.securityBackupTitle,
+      'DearCocoa',
     ];
 
     return Column(
@@ -71,8 +73,10 @@ class _DashboardPaneCarouselState extends State<DashboardPaneCarousel> {
                   return const TodayDashboardPane();
                 case 1:
                   return const WritingActivityPane();
-                default:
+                case 2:
                   return SecurityBackupPane(isActive: _selectedPage == 2);
+                default:
+                  return const DearCocoaPane();
               }
             },
           ),

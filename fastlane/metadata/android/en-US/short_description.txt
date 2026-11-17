@@ -1,0 +1,1 @@
+Private diary with rich text, cloud backup, sync, and fingerprint lock.

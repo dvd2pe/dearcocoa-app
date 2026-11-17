@@ -1,0 +1,181 @@
+import 'dart:io';
+import 'package:dairy_app/core/databases/db_schemas.dart';
+import 'package:dairy_app/core/logger/logger.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import 'welcome_note.dart';
+
+final log = printer("SQLTableSetup");
+
+class DBProvider {
+  DBProvider._();
+  static final DBProvider instance = DBProvider._();
+
+  static Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+
+    _database = await initDB();
+    return _database!;
+  }
+
+  initDB() async {
+    Directory documentsDirectory = await getApplicationDocumentsDirectory();
+    String path = join(documentsDirectory.path, "prod.db");
+    return await openDatabase(
+      path,
+      version: 6,
+      onOpen: (db) {},
+      onCreate: (Database db, int version) async {
+        try {
+          await db.execute(
+            """
+          CREATE TABLE ${Users.TABLE_NAME} (
+            ${Users.ID} TEXT PRIMARY KEY,
+            ${Users.EMAIL} TEXT,
+            ${Users.PASSWORD} TEXT
+          )
+          """,
+          );
+
+          await db.execute("""
+          CREATE TABLE ${Notes.TABLE_NAME} (
+            ${Notes.ID} TEXT, 
+            ${Notes.CREATED_AT} DATETIME,
+            ${Notes.TITLE} TEXT,
+            ${Notes.BODY} TEXT, 
+            ${Notes.HASH} TEXT,
+            ${Notes.LAST_MODIFIED} DATETIME, 
+            ${Notes.PLAIN_TEXT} TEXT, 
+            ${Notes.DELETED} INTEGER, 
+            ${Notes.AUTHOR_ID} TEXT,
+            ${Notes.IS_ENCRYPTED} INTEGER NOT NULL DEFAULT 0,
+            ${Notes.ENCRYPTION_VERSION} INTEGER NOT NULL DEFAULT 1,
+            ${Notes.ENC_SALT} TEXT,
+            ${Notes.ENC_WRAPPED_MK_PASS} TEXT,
+            ${Notes.ENC_WRAPPED_MK_RECOVERY} TEXT,
+            ${Notes.WRAPPED_DEK} TEXT
+          )
+          """);
+
+          await db.execute("""
+            CREATE TABLE ${NoteDependencies.TABLE_NAME} (
+              ${NoteDependencies.NOTE_ID} TEXT,
+              ${NoteDependencies.ASSET_TYPE} TEXT, 
+              ${NoteDependencies.ASSET_PATH} TEXT
+            )
+            """);
+
+          await db.execute("""
+            CREATE TABLE  ${Tags.TABLE_NAME} (
+              ${Tags.NOTE_ID} TEXT,
+              ${Tags.NAME} TEXT
+            )""");
+
+          await db.execute("""
+            CREATE TABLE  ${Todos.TABLE_NAME} (
+              ${Todos.ID} TEXT PRIMARY KEY,
+              ${Todos.NOTE_ID} TEXT,
+              ${Todos.NOTE_TITLE} TEXT,
+              ${Todos.TEXT} TEXT,
+              ${Todos.IS_CHECKED} INTEGER NOT NULL DEFAULT 0,
+              ${Todos.REMINDER_AT} INTEGER,
+              ${Todos.NOTIFICATION_ID} INTEGER
+            )""");
+
+          await db.execute(_createNoteSyncReceiptsTable);
+
+          log.i("All create queries executed successfully");
+          log.i("Inserting welcome note");
+
+          // As soon as the tables are created, insert a welcome note
+          // Check if there are no records in the notes table before inserting the initial data
+          final count = Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM ${Notes.TABLE_NAME}'));
+          if (count == 0) {
+            await db.insert(Notes.TABLE_NAME, welcomeNote);
+
+            // Insert a tag for welcome note
+            await db.insert(Tags.TABLE_NAME, {
+              "name": "welcome note",
+              "note_id": welcomeNote["id"],
+            });
+          }
+          log.i("Welcome Note inserted into table: ${Notes.TABLE_NAME}");
+        } catch (e) {
+          log.e(e);
+          rethrow;
+        }
+      },
+      onUpgrade: (Database db, int oldVersion, int newVersion) async {
+        log.i(
+            "onUpgrade called with oldVersion: $oldVersion, newVersion: $newVersion");
+        if (oldVersion < 2) {
+          await db.execute("""
+            CREATE TABLE  ${Tags.TABLE_NAME} (
+              ${Tags.NOTE_ID} TEXT,
+              ${Tags.NAME} TEXT
+            )""");
+        }
+        if (oldVersion < 3) {
+          await db.execute(
+              "ALTER TABLE ${Notes.TABLE_NAME} ADD COLUMN ${Notes.IS_ENCRYPTED} INTEGER NOT NULL DEFAULT 0");
+          await db.execute(
+              "ALTER TABLE ${Notes.TABLE_NAME} ADD COLUMN ${Notes.ENCRYPTION_VERSION} INTEGER NOT NULL DEFAULT 1");
+          await db.execute(
+              "ALTER TABLE ${Notes.TABLE_NAME} ADD COLUMN ${Notes.ENC_SALT} TEXT");
+          await db.execute(
+              "ALTER TABLE ${Notes.TABLE_NAME} ADD COLUMN ${Notes.ENC_WRAPPED_MK_PASS} TEXT");
+          await db.execute(
+              "ALTER TABLE ${Notes.TABLE_NAME} ADD COLUMN ${Notes.ENC_WRAPPED_MK_RECOVERY} TEXT");
+          await db.execute(
+              "ALTER TABLE ${Notes.TABLE_NAME} ADD COLUMN ${Notes.WRAPPED_DEK} TEXT");
+        }
+        if (oldVersion < 4) {
+          log.i("Trimming whitespace from existing tags and removing duplicates");
+
+          // Strip leading/trailing whitespace from every tag name
+          await db.execute(
+              "UPDATE ${Tags.TABLE_NAME} SET ${Tags.NAME} = TRIM(${Tags.NAME})");
+
+          // Deduplicate rows that now share the same note_id + trimmed name,
+          // keeping the earliest inserted row for each combination
+          await db.execute("""
+            DELETE FROM ${Tags.TABLE_NAME}
+            WHERE rowid NOT IN (
+              SELECT MIN(rowid)
+              FROM ${Tags.TABLE_NAME}
+              GROUP BY ${Tags.NOTE_ID}, ${Tags.NAME}
+            )
+          """);
+        }
+        if (oldVersion < 5) {
+          await db.execute("""
+            CREATE TABLE  ${Todos.TABLE_NAME} (
+              ${Todos.ID} TEXT PRIMARY KEY,
+              ${Todos.NOTE_ID} TEXT,
+              ${Todos.NOTE_TITLE} TEXT,
+              ${Todos.TEXT} TEXT,
+              ${Todos.IS_CHECKED} INTEGER NOT NULL DEFAULT 0,
+              ${Todos.REMINDER_AT} INTEGER,
+              ${Todos.NOTIFICATION_ID} INTEGER
+            )""");
+        }
+        if (oldVersion < 6) {
+          await db.execute(_createNoteSyncReceiptsTable);
+        }
+      },
+    );
+  }
+
+  String get _createNoteSyncReceiptsTable => """
+    CREATE TABLE IF NOT EXISTS ${NoteSyncReceipts.TABLE_NAME} (
+      ${NoteSyncReceipts.SYNC_SCOPE} TEXT NOT NULL,
+      ${NoteSyncReceipts.NOTE_ID} TEXT NOT NULL,
+      ${NoteSyncReceipts.CONTENT_HASH} TEXT NOT NULL,
+      PRIMARY KEY (${NoteSyncReceipts.SYNC_SCOPE}, ${NoteSyncReceipts.NOTE_ID})
+    )
+  """;
+}

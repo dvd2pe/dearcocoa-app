@@ -1,0 +1,751 @@
+import 'dart:convert';
+import 'dart:io' as io;
+
+import 'package:dairy_app/core/dependency_injection/injection_container.dart';
+import 'package:dairy_app/core/logger/logger.dart';
+import 'package:dairy_app/core/network/network_info.dart';
+import 'package:dairy_app/features/auth/core/constants.dart';
+import 'package:dairy_app/features/auth/presentation/bloc/user_config/user_config_cubit.dart';
+import 'package:dairy_app/features/notes/data/models/notes_model.dart';
+import 'package:dairy_app/features/notes/domain/repositories/notes_repository.dart';
+import 'package:dairy_app/features/sync/core/failures.dart';
+import 'package:dairy_app/features/sync/data/datasources/dropbox_sync_client.dart';
+import 'package:dairy_app/features/sync/data/datasources/google_drive_sync_client.dart';
+import 'package:dairy_app/features/sync/data/datasources/nextcloud_sync_client.dart';
+import 'package:dairy_app/features/sync/data/datasources/note_sync_receipts_local_data_source_template.dart';
+import 'package:dairy_app/features/sync/data/datasources/temeplates/sync_client_template.dart';
+import 'package:dairy_app/features/sync/domain/repositories/sync_repository_template.dart';
+import 'package:dartz/dartz.dart';
+import 'package:path/path.dart' as p;
+
+final log = printer("SyncRepository");
+
+const appFolderName = "my dairy";
+const indexFileName = "index";
+const lockFileName = "lockfile";
+
+class SyncRepository implements ISyncRepository {
+  final INotesRepository notesRepository;
+  final UserConfigCubit userConfigCubit;
+  late ISyncClient syncClient;
+  final INetworkInfo networkInfo;
+  final INoteSyncReceiptsLocalDataSource noteSyncReceipts;
+
+  SyncRepository({
+    required this.notesRepository,
+    required this.networkInfo,
+    required this.userConfigCubit,
+    required this.noteSyncReceipts,
+  });
+
+  @override
+  Future<Either<SyncFailure, bool>> initializeSyncRepository() async {
+    try {
+      if (!await networkInfo.isConnected) {
+        return Left(SyncFailure.noInternetConnection());
+      }
+
+      var res = _initializeSyncClient();
+      if (res == false) {
+        return Left(SyncFailure.noSyncSourceSelected());
+      }
+
+      log.i("successfully initalized sync client");
+
+      res = await syncClient.initialieClient();
+      // if res is false here, cancel the sync as in case of dropbox authentication will
+      // happen in browser
+      if (res == false) {
+        return Left(SyncFailure.stopSync());
+      }
+
+      log.i("successfully initalized sync client dependencies");
+
+      return const Right(true);
+    } catch (e) {
+      log.e(e);
+      return Left(SyncFailure.connectionFailed());
+    }
+  }
+
+  /// Checks if the project folder is present, if not initializes new project structure
+  ///
+  /// Can be called in the beginning when no folder exists, or if the project folder exists
+  /// and index is corrupted (which isn't the ideal case)
+  ///
+  /// returns true if everything works, false if somethign goes wrong
+  @override
+  Future<Either<SyncFailure, bool>> initializeNewFolderStructure(
+      {void Function(double progress)? onProgress}) async {
+    try {
+      bool isAppFolderPresent = await syncClient.isFilePresent(appFolderName,
+          folder: true, fullFilePath: "/$appFolderName");
+      if (!isAppFolderPresent) {
+        log.i("app folder is not present, starting bulk upload");
+        final res = await bulkUploadEverything(onProgress: onProgress);
+        if (res) {
+          return Right(res);
+        }
+        return Left(SyncFailure.unknownError());
+      }
+
+      bool isIndexFolderPresent = await syncClient.isFilePresent(
+          indexFileName + ".json",
+          fullFilePath: "/$appFolderName/$indexFileName.json");
+      if (!isIndexFolderPresent) {
+        log.i("Index file is not present, starting bulk upload");
+        return Right(await bulkUploadEverything());
+      }
+
+      // if the folder is locked
+      bool isAppFolderLocked = await isFolderLocked();
+      if (isAppFolderLocked) {
+        log.w("Folder is locked, aborting sync");
+        return Left(SyncFailure.anotherDeviceIsSyncing());
+      }
+
+      log.i("uploading lockfile for diff and sync");
+      await syncClient.uploadFile(
+        fileContent: "",
+        fileName: lockFileName,
+        parentFolder: appFolderName,
+        fullFilePath: "/$appFolderName/$lockFileName",
+      );
+
+      bool isNotesSynced = await diffEachNoteAndSync(onProgress: onProgress);
+
+      log.i("Removing lockfile for diff and sync");
+      await syncClient.deleteFile(lockFileName,
+          fullFilePath: "/$appFolderName/$lockFileName");
+
+      if (!isNotesSynced) {
+        log.w("Could not sync notes");
+        return Left(SyncFailure.unknownError());
+      }
+
+      return const Right(true);
+    } catch (e) {
+      log.e(e);
+      return Left(SyncFailure.unknownError());
+    }
+  }
+
+  /// Deletes the app folder if exists and bul uploads everything from local database
+  ///
+  /// ideally should be done only the first time
+  Future<bool> bulkUploadEverything(
+      {void Function(double progress)? onProgress}) async {
+    try {
+      // delete the main app folder
+      bool isAppFolderDeleted = await syncClient.deleteFile(appFolderName,
+          folder: true, fullFilePath: "/$appFolderName");
+      if (!isAppFolderDeleted) {
+        log.e("Could not delete the app folder");
+        return false;
+      }
+
+      // create the app folder
+      bool isAppFolderCreated = await syncClient.createFolder(appFolderName,
+          fullFolderPath: "/$appFolderName");
+      if (!isAppFolderCreated) {
+        log.e("Could not create app folder");
+        return false;
+      }
+
+      //* upload lockfile
+      log.i("uploading lockfile");
+      await syncClient.uploadFile(
+        fileContent: "test",
+        fileName: lockFileName,
+        parentFolder: appFolderName,
+        fullFilePath: "/$appFolderName/$lockFileName",
+      );
+
+      var result = await notesRepository.getAllNoteIds();
+
+      return result.fold((e) {
+        log.e(e);
+        log.i("failed to fetch note ID's, aborting bulk upload");
+        return false;
+      }, (data) async {
+        int totalOperations = data.length + 1;
+        int processedOperations = 0;
+
+        for (var noteId in data) {
+          // upload all notes and their assets
+          await _uploadSingleNote(noteId);
+
+          processedOperations++;
+          onProgress?.call(processedOperations / totalOperations);
+        }
+
+        // upload index
+        var result = await notesRepository.generateNotesIndex();
+
+        //* Remove the lockfile, despite of the process is success or failure
+
+        return result.fold((e) async {
+          log.e("fetching of notes index failed");
+
+          await syncClient.deleteFile(lockFileName,
+              fullFilePath: "/$appFolderName/$lockFileName");
+          log.i("removing lockfile");
+
+          return false;
+        }, (notesIndex) async {
+          bool isIndexFileUploaded = await syncClient.uploadFile(
+              fileContent: jsonEncode(notesIndex),
+              fileName: indexFileName + ".json",
+              parentFolder: appFolderName,
+              fullFilePath: "/$appFolderName/$indexFileName.json");
+
+          processedOperations++;
+          onProgress?.call(processedOperations / totalOperations);
+
+          log.i("removing lockfile");
+          await syncClient.deleteFile(lockFileName,
+              fullFilePath: "/$appFolderName/$lockFileName");
+
+          if (!isIndexFileUploaded) {
+            return false;
+          }
+
+          await _recordSyncSnapshot(notesIndex);
+          await syncClient.updateLastSynced();
+
+          log.i("Bulk initialization complete");
+
+          return true;
+        });
+      });
+    } catch (e) {
+      log.e(e);
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> diffEachNoteAndSync(
+      {void Function(double progress)? onProgress}) async {
+    try {
+      // Download the index file
+      log.i("Started diffEachNoteAndSync");
+      var _globalNotesIndex = jsonDecode(await syncClient.downloadFile(
+        "index.json",
+        fullFilePath: "/$appFolderName/index.json",
+      ));
+
+      List<Map<String, dynamic>> globalNotesIndex = [];
+      for (var noteIndex in _globalNotesIndex) {
+        globalNotesIndex.add(noteIndex);
+      }
+
+      var result = await notesRepository.generateNotesIndex();
+      List<Map<String, dynamic>> localNotesIndex = [];
+
+      result.fold((e) {
+        log.e("fetching of notes index failed");
+        return false;
+      }, (notesIndex) {
+        localNotesIndex = notesIndex;
+      });
+
+      log.d("global notes index = $globalNotesIndex");
+      // log.d("local notes index = $localNotesIndex");
+
+      // Fast path for new/empty devices: download all active notes in parallel
+      if (localNotesIndex.isEmpty) {
+        log.i("Local notes are empty, starting bulk parallel download");
+        await _bulkDownloadNotes(globalNotesIndex, onProgress);
+        await syncClient.updateLastSynced();
+        await _recordSyncSnapshot(globalNotesIndex);
+        onProgress?.call(1.0);
+        return true;
+      }
+
+      // Copy of global notes index, as we have to update index for each diff and we cannot store
+      // updated index in globalNotesIndex as we should not change array while iterating it
+      var globalNotesIndexCopy = globalNotesIndex.map((e) => {...e}).toList();
+
+      int newNotesToUpload = localNotesIndex
+          .where((noteIndex) => noteIndex["deleted"] == 0)
+          .length;
+      int totalNotes = globalNotesIndex.length + newNotesToUpload;
+      int processedNotes = 0;
+
+      // first iterate through the global notes map and sort out and all the stuff with
+      // corresponding local notes index, then deal with the remaining notes in local notes index
+      for (var globalNote in globalNotesIndex) {
+        processedNotes++;
+        onProgress?.call(
+            totalNotes > 0 ? processedNotes / totalNotes : 0.0);
+
+        var localNote = _findNoteWithGivenId(localNotesIndex, globalNote["id"]);
+
+        log.d("globalNote = $globalNote");
+        log.d("localNote = $localNote");
+
+        // remove the global note id from allLocalNoteId's to identify the note to be inserted
+        localNotesIndex
+            .removeWhere((noteIndex) => noteIndex["id"] == globalNote["id"]);
+
+        // global note is deleted
+        if (globalNote["deleted"] == 1) {
+          log.i("global note is deleted");
+
+          if (localNote == null || localNote["deleted"] == 1) {
+            log.i(
+                "local note also does not exists or already deleted, so no change");
+            continue;
+          }
+
+          // local note exists, tie break based on last modified
+          if (localNote["last_modified"] < globalNote["last_modified"]) {
+            log.i("delete the local note");
+            await notesRepository.deleteNotes([localNote["id"]]);
+          } else {
+            // hard delete + new upload to cloud
+            log.i("modifying the note in cloud");
+            globalNotesIndexCopy = await deleteNoteInCloud(
+              globalNote["id"],
+              globalNotesIndexCopy,
+              hardDeletion: true,
+            );
+            globalNotesIndexCopy = await createNoteInCloud(
+                noteIndex: localNote, globalIndex: globalNotesIndexCopy);
+          }
+        }
+        // global note is not deleted
+        else {
+          log.i("global note is not deleted");
+          // local note does not exists
+          if (localNote == null) {
+            log.i("downloading and inserting the local note locally");
+            await downloadAndInsertNote(globalNote["id"]);
+          }
+
+          // both have same hash, ignore
+          else if (localNote["hash"] == globalNote["hash"]) {
+            log.i("hashes are same, so no change");
+            continue;
+          }
+
+          // local note is deleted
+          else if (localNote["deleted"] == 1) {
+            // tiebraker based on last modified
+            if (localNote["last_modified"] > globalNote["last_modified"]) {
+              log.i("soft delete global note");
+
+              globalNotesIndexCopy = await deleteNoteInCloud(
+                  globalNote["id"], globalNotesIndexCopy,
+                  lastModified: localNote["last_modified"]);
+            } else {
+              // hard delete local note and insert a new copy from global (because we don't have
+              // function to update) soft deleted notes
+              log.i(
+                  "updating notes on local by hard deletion and new insertion");
+
+              await notesRepository
+                  .deleteNotes([localNote["id"]], hardDeletion: true);
+
+              await downloadAndInsertNote(localNote["id"]);
+            }
+          }
+
+          // one of them is updates, tiebraker based on last modified
+          else if (localNote["hash"] != globalNote["hash"]) {
+            if (localNote["last_modified"] > globalNote["last_modified"]) {
+              // update the global note by hard deletion followed by insertion
+
+              log.i(
+                  "updating the global notes by hard deletion and new insertion");
+              globalNotesIndexCopy = await deleteNoteInCloud(
+                  globalNote["id"], globalNotesIndexCopy,
+                  hardDeletion: true);
+
+              globalNotesIndexCopy = await createNoteInCloud(
+                  noteIndex: localNote, globalIndex: globalNotesIndexCopy);
+            } else {
+              // update the local note by hard deletion followed by insertion
+              log.i(
+                  "updating notes on local by hard deletion and new insertion");
+
+              await notesRepository
+                  .deleteNotes([localNote["id"]], hardDeletion: true);
+
+              await downloadAndInsertNote(localNote["id"]);
+            }
+          }
+        }
+      }
+
+      log.i("processing of global notes finished\n\n");
+
+      // upload the new notes to cloud
+      for (var noteIndex in localNotesIndex) {
+        // upload it only if it's not deleted locally
+        if (noteIndex["deleted"] == 0) {
+          log.i("fresh upload of ${noteIndex["id"]} to cloud");
+          globalNotesIndexCopy = await createNoteInCloud(
+              noteIndex: noteIndex, globalIndex: globalNotesIndexCopy);
+
+          processedNotes++;
+          onProgress?.call(
+              totalNotes > 0 ? processedNotes / totalNotes : 0.0);
+        }
+      }
+
+      log.i("global notes index at end = \n $globalNotesIndexCopy");
+
+      await syncClient.updateLastSynced();
+      await _recordSyncSnapshot(globalNotesIndexCopy);
+      onProgress?.call(1.0);
+      return true;
+    } catch (e) {
+      log.e(e);
+      return false;
+    }
+  }
+
+  Future<void> _uploadSingleNote(String noteId) async {
+    try {
+      final result = await notesRepository.getNote(noteId);
+      final note = result.fold(
+        (failure) => throw StateError('Could not read note $noteId: $failure'),
+        (value) => value,
+      );
+
+      await syncClient.createFolder(
+        note.id,
+        parentFolder: appFolderName,
+        fullFolderPath: "/$appFolderName/${note.id}",
+      );
+
+      final noteUploaded = await syncClient.uploadFile(
+        fileContent: jsonEncode(note.toJson()),
+        fileName: '$noteId.json',
+        parentFolder: note.id,
+        fullFilePath: "/$appFolderName/${note.id}/$noteId.json",
+      );
+      if (!noteUploaded) {
+        throw StateError('Note upload failed for $noteId');
+      }
+
+      for (final asset in note.assetDependencies) {
+        final assetUploaded = await syncClient.uploadFile(
+          file: io.File(asset.assetPath),
+          parentFolder: note.id,
+          fullFilePath:
+              "/$appFolderName/${note.id}/${p.basename(asset.assetPath)}",
+        );
+        if (!assetUploaded) {
+          throw StateError('Could not upload asset ${asset.assetPath}');
+        }
+      }
+    } catch (e) {
+      log.e(e);
+      rethrow;
+    }
+  }
+
+  /// Updates the note, adds the noteIndex map to global index and writes global index into index.json
+  @override
+  Future<List<Map<String, dynamic>>> createNoteInCloud({
+    required Map<String, dynamic> noteIndex,
+    required List<Map<String, dynamic>> globalIndex,
+  }) async {
+    log.i("uploading ${noteIndex["id"]} to cloud");
+    try {
+      // upload note and assets
+      await _uploadSingleNote(noteIndex["id"]);
+
+      // update global index and update the file in cloud
+      globalIndex.add(noteIndex);
+
+      final indexUpdated = await syncClient.updateFile(
+          fileName: "index.json",
+          fileContent: jsonEncode(globalIndex),
+          fullFilePath: "/$appFolderName/index.json");
+      if (!indexUpdated) {
+        throw StateError('Cloud note index update failed');
+      }
+
+      log.i("uploading ${noteIndex["id"]} to cloud successful");
+      // return the updated global index array
+      return globalIndex;
+    } catch (e) {
+      log.e(e);
+      rethrow;
+    }
+  }
+
+  /// Download note with given iD and its assets and insert it locally
+  @override
+  Future<void> downloadAndInsertNote(String noteId) async {
+    try {
+      // download the note body which was stored as JSON
+
+      log.i("Downloading $noteId from cloud");
+
+      bool isNoteFilePresent = await syncClient.isFilePresent(
+        noteId + ".json",
+        fullFilePath: "/$appFolderName/$noteId/$noteId.json",
+      );
+
+      if (!isNoteFilePresent) {
+        log.w("Note $noteId file is missing on cloud, skipping download");
+        return;
+      }
+
+      Map<String, dynamic> newNote = jsonDecode(await syncClient.downloadFile(
+        noteId + ".json",
+        fullFilePath: "/$appFolderName/$noteId/$noteId.json",
+      ));
+
+      log.i("newNote = $newNote");
+      // download all assets and record the paths in a map
+      // new asset paths will replace old asset paths
+
+      Map<String, String> assetPathMap = {};
+
+      for (var noteAsset in newNote["asset_dependencies"]) {
+        String assetName = p.basename(noteAsset["asset_path"]);
+        String assetFileName = p.basename(assetName);
+
+        bool isAssetPresent = await syncClient.isFilePresent(
+          assetFileName,
+          fullFilePath: "/$appFolderName/$noteId/$assetFileName",
+        );
+
+        if (!isAssetPresent) {
+          log.w("Asset $assetFileName for note $noteId is missing, skipping");
+          continue;
+        }
+
+        assetPathMap[assetName] = await syncClient.downloadFile(
+          assetName,
+          outputAsFile: true,
+          fullFilePath: "/$appFolderName/$noteId/$assetFileName",
+        );
+      }
+
+      log.i("downloaded note assets = $assetPathMap");
+
+      // Encrypted bodies are ciphertext, not JSON deltas, so asset paths
+      // can't be rewritten; downloaded assets keep the same app-relative
+      // path, so paths embedded at encryption time still resolve
+      final bool isEncrypted = newNote["is_encrypted"] == 1;
+      String newNoteBody = isEncrypted
+          ? newNote["body"]
+          : notesRepository.replaceOldAssetPathsWithNewAssetPaths(
+              newNote["body"], assetPathMap);
+
+      log.d("new note body = \n $newNoteBody");
+      newNote["body"] = newNoteBody;
+
+      // note assets needs to be converted to their respective models
+      newNote["asset_dependencies"] = newNote["asset_dependencies"]
+          .map((noteAsset) => NoteAssetModel.fromJson(noteAsset))
+          .toList();
+
+      // save the notes into database
+      await notesRepository.saveNote(newNote, dontModifyAnyParameters: true);
+
+      log.i("Downloading of note $noteId successful");
+    } catch (e) {
+      log.e(e);
+      rethrow;
+    }
+  }
+
+  /// Bulk download all active notes in parallel batches (used for new/empty devices)
+  Future<void> _bulkDownloadNotes(
+    List<Map<String, dynamic>> globalNotesIndex,
+    void Function(double progress)? onProgress,
+  ) async {
+    const int concurrency = 4;
+
+    final noteIds = globalNotesIndex
+        .where((note) => note["deleted"] == 0)
+        .map((note) => note["id"] as String)
+        .toList();
+
+    final int totalNotes = noteIds.length;
+    int processedNotes = 0;
+
+    for (int i = 0; i < totalNotes; i += concurrency) {
+      final batch = noteIds.sublist(
+        i,
+        i + concurrency > totalNotes ? totalNotes : i + concurrency,
+      );
+
+      await Future.wait(
+          batch.map((noteId) => downloadAndInsertNote(noteId)));
+
+      processedNotes += batch.length;
+      onProgress?.call(
+          totalNotes > 0 ? processedNotes / totalNotes : 0.0);
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> deleteNoteInCloud(
+    String noteId,
+    List<Map<String, dynamic>> globalIndex, {
+    bool hardDeletion = false,
+    int? lastModified,
+  }) async {
+    try {
+      log.i("Deleting $noteId on cloud");
+      // update the index first and then delete the actual folder to avoid inconsisteny
+      if (hardDeletion) {
+        globalIndex.removeWhere((noteIndex) => noteIndex["id"] == noteId);
+      } else {
+        globalIndex = globalIndex
+            .map((Map<String, dynamic> noteIndex) => noteIndex["id"] != noteId
+                ? noteIndex
+                : {...noteIndex, "deleted": 1, "last_modified": lastModified!})
+            .toList();
+      }
+
+      final indexUpdated = await syncClient.updateFile(
+          fileName: "index.json",
+          fileContent: jsonEncode(globalIndex),
+          fullFilePath: "/$appFolderName/index.json");
+      if (!indexUpdated) {
+        throw StateError('Cloud note index update failed');
+      }
+
+      // delete the note folder
+      await syncClient.deleteFile(noteId,
+          folder: true, fullFilePath: "/$appFolderName/$noteId");
+
+      log.i("Deletion of $noteId successful");
+      return globalIndex;
+    } catch (e) {
+      log.e(e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<bool> isFolderLocked() async {
+    try {
+      log.i("Starting lockfile check");
+
+      bool isLockfilePresent = await syncClient.isFilePresent(lockFileName,
+          fullFilePath: "/$appFolderName/$lockFileName");
+      if (!isLockfilePresent) {
+        return false;
+      }
+      // check if it is expired, expiration time: 5 min
+      // if createdTime is null, we assume it is expired and delete it
+
+      DateTime? lockedFileCreatedTime = await syncClient.getNoteCreatedTime(
+        lockFileName,
+        fullFilePath: "/$appFolderName/$lockFileName",
+      );
+
+      if (lockedFileCreatedTime == null ||
+          DateTime.now().difference(lockedFileCreatedTime).inMinutes > 5) {
+        // delete lockfile
+        await syncClient.deleteFile(lockFileName,
+            fullFilePath: "/$appFolderName/$lockFileName");
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      log.e(e);
+      return false;
+    }
+  }
+
+  //* Utils
+
+  /// Chooses the appropriate OAuthClient as per user choice and initializes it
+  bool _initializeSyncClient() {
+    final preferredSyncOption =
+        userConfigCubit.state.userConfigModel?.preferredSyncOption;
+
+    log.i("preferredSyncOption = $preferredSyncOption");
+    if (preferredSyncOption == SyncConstants.googleDrive) {
+      syncClient = sl<GoogleDriveSyncClient>();
+      return true;
+    } else if (preferredSyncOption == SyncConstants.dropbox) {
+      syncClient = sl<DropboxSyncClient>();
+      return true;
+    } else if (preferredSyncOption == SyncConstants.nextCloud) {
+      syncClient = sl<NextCloudSyncClient>();
+      return true;
+    }
+
+    // if preferred sync option is not set, check if user has logged into
+    // any of the sync sources, if so set it as preferred sync source
+
+    final isLoggedIntoGoogleDrive =
+        userConfigCubit.state.userConfigModel?.googleDriveUserInfo?.isNotEmpty;
+
+    if (isLoggedIntoGoogleDrive == true) {
+      log.i("Setting google drive as sync source as user has logged in");
+      userConfigCubit.setUserConfig(
+          UserConfigConstants.preferredSyncOption, SyncConstants.googleDrive);
+      syncClient = sl<GoogleDriveSyncClient>();
+      return true;
+    }
+
+    final isLoggedIntoDropBox =
+        userConfigCubit.state.userConfigModel?.dropBoxUserInfo?.isNotEmpty;
+
+    if (isLoggedIntoDropBox == true) {
+      log.i("Setting dropbox as sync source as user has logged in");
+      userConfigCubit.setUserConfig(
+          UserConfigConstants.preferredSyncOption, SyncConstants.dropbox);
+      syncClient = sl<DropboxSyncClient>();
+      return true;
+    }
+
+    return false;
+  }
+
+  Future<String> _currentSyncScope() async {
+    final provider = syncClient is GoogleDriveSyncClient
+        ? SyncConstants.googleDrive
+        : syncClient is DropboxSyncClient
+            ? SyncConstants.dropbox
+            : SyncConstants.nextCloud;
+    final account = (await syncClient.getSignedInUserInfo())
+            ?.trim()
+            .toLowerCase() ??
+        'unknown-account';
+    return '$provider|$account';
+  }
+
+  Future<void> _recordSyncSnapshot(
+    List<Map<String, dynamic>> notes,
+  ) async {
+    int? remoteFolderSizeBytes;
+    try {
+      remoteFolderSizeBytes =
+          await syncClient.getFolderSize('/$appFolderName');
+    } catch (e) {
+      // Sync receipts are still useful even if this provider cannot report size.
+      log.w('Could not read synced folder size: $e');
+    }
+    await noteSyncReceipts.replaceReceipts(
+      await _currentSyncScope(),
+      notes,
+      remoteFolderSizeBytes: remoteFolderSizeBytes,
+    );
+  }
+
+  Map<String, dynamic>? _findNoteWithGivenId(
+      List<Map<String, dynamic>> notesIndex, String noteId) {
+    for (var note in notesIndex) {
+      if (note["id"] == noteId) {
+        return note;
+      }
+    }
+    return null;
+  }
+}

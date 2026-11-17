@@ -1,0 +1,53 @@
+# Contributing to DiaryVault
+
+Thank you for your interest in contributing to DiaryVault! We welcome contributions from the community to help improve and grow this project.
+
+## Setup Guide
+
+DiaryVault is written in Flutter. Even though Flutter is cross-platform, DiaryVault is currently focused on Android. So in order to setup and run the project locally, you need to have an Android emulator or a real device.
+
+DiaryVault is built with **flutter 3.32.0**, which is pinned in `.fvmrc`. Use that version — the Android build requires AGP 8.7.3 / Gradle 8.12 and JDK 17.
+
+Running the project is as simple as:
+
+```
+$ git clone https://github.com/SankethBK/diaryvault
+
+$ flutter pub get
+
+$ make run-staging
+```
+
+### Firebase environments
+
+Firebase configuration is selected by the Android flavor. Do not replace `google-services.json` manually.
+
+```bash
+make run-staging  # uses the staging Firebase project
+make run-prod     # uses the production Firebase project
+make apk-staging  # builds a staging release APK
+make apk-prod     # builds a production release APK
+make aab-prod     # builds the production Play Store bundle
+```
+
+
+### In case you're installing flutter from the flutter repo, run the following commands to switch to the correct version:
+
+1. cd into the path where you cloned flutter to install it into your machine.
+2. Fetch all the tags from the flutter repo: 
+```
+git fetch --tags
+```
+3. Checkout to the correct flutter version: 
+```
+git checkout 3.32.0
+```
+4. Ensure flutter's version updated: 
+```
+flutter --version
+```
+
+
+If you are contributing for any specific issue, make sure to reference the issue in your PR so that we can help with additional information.
+
+Note: If you face linter issues while submitting PR, run this command `dart format --line-length 80 --set-exit-if-changed .`

@@ -53,7 +53,12 @@ jobs:
 
       - name: Align screenshots to walkthrough markers
         if: always()
-        run: python3 .github/scripts/align_demo_screens.py demo/logcat.txt demo/shots demo/screenshots
+        run: |
+          if [ -f demo/logcat.txt ]; then
+            python3 .github/scripts/align_demo_screens.py demo/logcat.txt demo/shots demo/screenshots
+          else
+            echo "no logcat.txt, skipping alignment"
+          fi
 
       - name: Concatenate video segments
         if: always()

@@ -18,9 +18,13 @@ echo "== KVM check =="
 ls -l /dev/kvm 2>/dev/null || echo "WARN: /dev/kvm not found (emulator will be slow)"
 
 echo "== Install emulator bits =="
-yes | sdkmanager --licenses >/dev/null 2>&1 || true
-timeout 300 sdkmanager "platform-tools" "emulator" \
+SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+yes | timeout 120 "$SDKM" --licenses >/dev/null 2>&1 || true
+timeout 900 "$SDKM" "platform-tools" "emulator" \
   "system-images;android-30;google_apis;x86_64" >/dev/null
+ls "$ANDROID_HOME/emulator/emulator" >/dev/null || { echo "FATAL: emulator binary missing" >&2; exit 1; }
+ls "$ANDROID_HOME/system-images/android-30/google_apis/x86_64" >/dev/null \
+  || { echo "FATAL: system image missing" >&2; exit 1; }
 echo "sdk bits installed"
 
 echo "== Create AVD manually (avdmanager hangs on runners) =="

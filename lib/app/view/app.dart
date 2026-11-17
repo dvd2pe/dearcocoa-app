@@ -128,14 +128,14 @@ class _AppViewState extends State<AppView> {
     return Builder(
       builder: (context) {
         final themeState = context.watch<ThemeCubit>().state;
-        final localeCubit = context.watch<LocaleCubit>().state;
         final fontCubit = context.watch<FontCubit>().state;
 
         return MaterialApp(
           navigatorKey: _navigatorKey,
           debugShowCheckedModeBanner: false,
           onGenerateTitle: (context) => S.of(context).appTitle,
-          locale: localeCubit.currentLocale,
+          // DearCocoa MVP: English-only build (device locale ignored).
+          locale: const Locale('en'),
           supportedLocales: S.delegate.supportedLocales,
           localizationsDelegates: const [
             S.delegate,

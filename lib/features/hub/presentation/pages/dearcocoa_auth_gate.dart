@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/dependency_injection/injection_container.dart';
 import '../../../../core/network/supabase_client.dart';
+import '../../../notes/data/repositories/supabase_entries_pull.dart';
+import '../../../notes/presentation/bloc/notes_fetch/notes_fetch_cubit.dart';
 
 /// Gate for DearCocoa social features: requires a Supabase session.
 /// When Supabase is not configured or the user is signed out, a friendly
@@ -84,14 +87,31 @@ class _DearCocoaSignInPageState extends State<DearCocoaSignInPage> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
+  int _selectedAccount = 0;
 
-  static const _demoAccounts = <String, String>{
-    'sofia@dearcocoa.demo': 'Sofia',
-    'luca@dearcocoa.demo': 'Luca',
-    'giulia@dearcocoa.demo': 'Giulia',
-    'marco@dearcocoa.demo': 'Marco',
-    'elena@dearcocoa.demo': 'Elena',
-  };
+  /// Demo accounts prefilled in the form; the chips switch between them.
+  static const _demoAccounts = [
+    (name: 'Alex Rivera', email: 'alex@dearcocoa.demo'),
+    (name: 'Maya Chen', email: 'maya@dearcocoa.demo'),
+  ];
+  static const _demoPassword = 'Cocoa2026!';
+
+  @override
+  void initState() {
+    super.initState();
+    // Prefill the first demo account so the client can sign in with one tap.
+    _emailController.text = _demoAccounts[_selectedAccount].email;
+    _passwordController.text = _demoPassword;
+  }
+
+  void _switchAccount(int index) {
+    setState(() {
+      _selectedAccount = index;
+      _emailController.text = _demoAccounts[index].email;
+      _passwordController.text = _demoPassword;
+      _error = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -115,8 +135,18 @@ class _DearCocoaSignInPageState extends State<DearCocoaSignInPage> {
           _error = 'Sign in failed';
           _loading = false;
         });
+        return;
       }
       // on success the auth gate rebuilds automatically
+      // bring the user's cloud journal into the local journal, then refresh
+      final added = await SupabaseEntriesPull.pullIntoLocalJournal();
+      if (added > 0) {
+        try {
+          sl<NotesFetchCubit>().fetchNotes();
+        } catch (_) {
+          // journal screen not open yet: no refresh needed
+        }
+      }
     } on AuthException catch (e) {
       setState(() {
         _error = e.message;
@@ -241,23 +271,37 @@ class _DearCocoaSignInPageState extends State<DearCocoaSignInPage> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Demo accounts (one tap)',
+                  'Demo accounts',
                   style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'The form is prefilled - switch or just tap Sign in.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final entry in _demoAccounts.entries)
-                      ActionChip(
-                        label: Text(entry.value),
-                        onPressed: _loading
+                    for (var i = 0; i < _demoAccounts.length; i++)
+                      ChoiceChip(
+                        avatar: Icon(
+                          i == 0
+                              ? Icons.favorite_rounded
+                              : Icons.spa_rounded,
+                          size: 18,
+                          color: i == _selectedAccount
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.primary,
+                        ),
+                        selected: i == _selectedAccount,
+                        label: Text(_demoAccounts[i].name),
+                        onSelected: _loading
                             ? null
-                            : () => _signIn(
-                                  entry.key,
-                                  'Cocoa2026!',
-                                ),
+                            : (_) => _switchAccount(i),
                       ),
                   ],
                 ),

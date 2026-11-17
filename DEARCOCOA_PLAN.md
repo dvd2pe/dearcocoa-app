@@ -1,8 +1,10 @@
 # DearCocoa × DiaryVault — Piano di sviluppo e documento di ripresa
 
 > **Scopo di questo file**: se la conversazione si perde, TUTTO il contesto per riprendere lo sviluppo è qui.
-> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M10 COMPLETATI** - CI verde, release v0.1.0-dearcocoa con APK firmati verificati.
-Score stimato vs requisiti DearCocoa: **~75/100** (features social+AI+mood end-to-end su Supabase; mancano: setup progetto Supabase del cliente + secrets, sync entries cloud, build iOS, polish/test).
+> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M10 COMPLETATI + M10.5 lato DB fatto** - CI verde, release v0.1.0-dearcocoa.
+> In corso (v0.2.0-dearcocoa): progetto Supabase "Dear Cocoa" (ref `sukxerupxdctdnegghwa`, eu-central-1) collegato - schema riapplicato da zero
+> (rimosso schema vecchio superato), seed realistico inglese (8 utenti, 5 spaces, 14 post, 3 room/31 msg, 4 eventi, 26 entries, 40 mood, 3 sessioni AI).
+> App: localizzazione forzata EN, login DearCocoa prefilled con switch Alex/Maya, pull journal cloud→locale (M2.1 pull). Score stimato: ~78/100.
 > Known issue upstream: todo_reminder_typing_test IME-driven fallisce (Provider<NotesBloc> mancante nell'harness) - pre-esistente sul base, step test non-bloccante in CI.
 
 ---
@@ -125,9 +127,10 @@ Tabelle (tutte con `id uuid default gen_random_uuid()`, `created_at timestamptz 
 - [x] **M8 — Hub + integrazione UI**: pagina hub raggiungibile da home, entry points nei temi DiaryVault
 - [x] **M9 — CI**: workflow `analyze.yml` (Flutter 3.32.0, analyze+test) su push; fix errori
 - [x] **M10 — Build APK CI**: release `v0.1.0-dearcocoa` con 3 APK firmati verificati (arm64/armv7/x86_64, cert CN=DearCocoa SHA-256 `B0:EA:55:...:4F`, validi al 2056). Fix storico: `/releases/latest` non restituisce le prerelease -> il workflow ora fetcha la release per tag. iOS `--no-codesign` su macos runner: ANCORA DA FARE
-- [ ] **M10.5 — Secrets Supabase (CLIENTE)**: creare il progetto Supabase, applicare `supabase/migrations/0001_init.sql` + `supabase/seed.sql`, poi impostare i secrets repo `SUPABASE_URL` e `SUPABASE_ANON_KEY` e ri-triggerare `Build and Attach DearCocoa APKs` -> APK con social layer attiva. Nota: la build v0.1.0 attuale gira in modalita' local-only (chiavi vuote per design)
-- [ ] **M2.1 — Sync entries -> Supabase**: upsert/pull della tabella `entries` (schema pronto, `local_id` per idempotenza) dentro il flusso notes DiaryVault; mood_score compilato dal mood check-in esistente
-- [ ] **M11 — Chiusura**: README DearCocoa, doc API, checklist security (RLS reviste), screenshot
+- [~] **M10.5 — Secrets Supabase (IN CORSO)**: progetto "Dear Cocoa" creato dal cliente, ref `sukxerupxdctdnegghwa`. Reset schema (tolte 25 tabelle del setup vecchio superato, buckets vecchi eliminati via Storage API) + `0001_init.sql` riapplicato + seed realistico inglese v2. Da fare: secrets repo `SUPABASE_URL`/`SUPABASE_ANON_KEY` + rebuild release -> APK con social layer attiva. OPENAI_API_KEY arriverà dopo dal cliente (reflections generazione in attesa, la storia demo è già seedata)
+- [~] **M2.1 — Sync entries -> Supabase (PULL fatto)**: `SupabaseEntriesPull` (lib/features/notes/data/repositories/supabase_entries_pull.dart) scarica le entries cloud dell'utente nel journal locale (idempotente per id, nota locale = entry cloud id), triggerato al sign-in DearCocoa e all'apertura hub + refresh NotesFetchCubit. PUSH locale->cloud ancora da fare
+- [x] **M-DEMO — Richieste cliente 18/11**: app tutta inglese (locale forzato `Locale('en')` in app.dart), login DearCocoa con form prefilled + switch 2 account (Alex Rivera / Maya Chen, password Cocoa2026!), dati demo realistici (note vere, community, chat, eventi)
+- [ ] **M11 — Chiusura**: README DearCocoa, doc API, checklist security (RLS reviste), screenshot + video demo stile Loom per il cliente
 
 ## 8. Come riprendere (checklist per il prossimo agente/utente)
 

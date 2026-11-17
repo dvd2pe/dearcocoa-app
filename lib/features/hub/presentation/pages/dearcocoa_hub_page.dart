@@ -1,19 +1,44 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/dependency_injection/injection_container.dart';
 import '../../../../core/network/supabase_client.dart';
 import '../../../chat/presentation/pages/chat_rooms_page.dart';
 import '../../../community/presentation/pages/community_page.dart';
 import '../../../events/presentation/pages/events_page.dart';
 import '../../../mood/presentation/pages/mood_tracker_page.dart';
+import '../../../notes/data/repositories/supabase_entries_pull.dart';
+import '../../../notes/presentation/bloc/notes_fetch/notes_fetch_cubit.dart';
 import '../../../reflections/presentation/pages/reflections_page.dart';
 import 'dearcocoa_auth_gate.dart';
 
 /// DearCocoa Hub: the entry point to the social wellness layer, styled
 /// with the active DiaryVault theme.
-class DearCocoaHubPage extends StatelessWidget {
+class DearCocoaHubPage extends StatefulWidget {
   static String get route => '/dearcocoa';
 
   const DearCocoaHubPage({super.key});
+
+  @override
+  State<DearCocoaHubPage> createState() => _DearCocoaHubPageState();
+}
+
+class _DearCocoaHubPageState extends State<DearCocoaHubPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Returning user with an active session: keep the local journal in sync
+    // with the user's cloud entries (idempotent pull).
+    Future.microtask(() async {
+      final added = await SupabaseEntriesPull.pullIntoLocalJournal();
+      if (added > 0) {
+        try {
+          sl<NotesFetchCubit>().fetchNotes();
+        } catch (_) {
+          // journal screen not open yet: no refresh needed
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

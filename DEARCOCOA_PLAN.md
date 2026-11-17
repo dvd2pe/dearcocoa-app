@@ -1,7 +1,8 @@
 # DearCocoa × DiaryVault — Piano di sviluppo e documento di ripresa
 
 > **Scopo di questo file**: se la conversazione si perde, TUTTO il contesto per riprendere lo sviluppo è qui.
-> Ultimo aggiornamento: 2026-11-18. Stato: **Fase 1 in corso**.
+> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M9 fatti (CI analyze verde), M10 build APK in corso**.
+> Known issue upstream: todo_reminder_typing_test IME-driven fallisce (Provider<NotesBloc> mancante nell'harness) - pre-esistente sul base, step test non-bloccante in CI.
 
 ---
 
@@ -111,16 +112,16 @@ Tabelle (tutte con `id uuid default gen_random_uuid()`, `created_at timestamptz 
 - [x] M0 — Analisi gap + ricerca repo (fatta, sezione 2 e 4)
 - [x] M0b — Build APK CI da clone (`dvd2pe/diaryvault-apk` release 2.4.0) ✅ verificata e firmata
 - [x] M0c — Questo documento pushato nella repo di sviluppo
-- [ ] **M1 — Fondazione Supabase**: `supabase/migrations` + `config.toml` + `seed.sql` + Edge Function `reflections`
-- [ ] **M2 — Integrazione app**: `supabase_flutter` in pubspec, `core/network/supabase_client.dart`,
+- [x] **M1 — Fondazione Supabase**: `supabase/migrations` + `config.toml` + `seed.sql` + Edge Function `reflections`
+- [x] **M2 — Integrazione app**: `supabase_flutter` in pubspec, `core/network/supabase_client.dart`,
       init in `main.dart`, data source Supabase per auth (UI esistente invariata)
-- [ ] **M3 — Mood tracking**: feature completa + mood sulla nota (entry_date, mood_score) + pagina tracker
-- [ ] **M4 — AI reflections**: service Dart → Edge Function, pagina conversazione con storia persistita
-- [ ] **M5 — Community spaces**: feed + post + like + comment
-- [ ] **M6 — Group chat**: rooms realtime + messaggi
-- [ ] **M7 — Events**: listing + RSVP
-- [ ] **M8 — Hub + integrazione UI**: pagina hub raggiungibile da home, entry points nei temi DiaryVault
-- [ ] **M9 — CI**: workflow `analyze.yml` (Flutter 3.32.0, analyze+test) su push; fix errori
+- [x] **M3 — Mood tracking**: feature completa + mood sulla nota (entry_date, mood_score) + pagina tracker
+- [x] **M4 — AI reflections**: service Dart → Edge Function, pagina conversazione con storia persistita
+- [x] **M5 — Community spaces**: feed + post + like + comment
+- [x] **M6 — Group chat**: rooms realtime + messaggi
+- [x] **M7 — Events**: listing + RSVP
+- [x] **M8 — Hub + integrazione UI**: pagina hub raggiungibile da home, entry points nei temi DiaryVault
+- [x] **M9 — CI**: workflow `analyze.yml` (Flutter 3.32.0, analyze+test) su push; fix errori
 - [ ] **M10 — Build APK+IPA CI**: estendere workflow build (APK release firmato; iOS `--no-codesign` su macos runner)
 - [ ] **M11 — Chiusura**: README DearCocoa, doc API, checklist security (RLS reviste), screenshot
 

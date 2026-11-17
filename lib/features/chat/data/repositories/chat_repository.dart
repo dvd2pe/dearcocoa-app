@@ -75,9 +75,13 @@ class ChatRepository {
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'messages',
-          filter: 'room_id=eq.$roomId',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'room_id',
+            value: roomId,
+          ),
           callback: (PostgresChangePayload payload) {
-            final row = Map<String, dynamic>.from(payload.newRow);
+            final row = Map<String, dynamic>.from(payload.newRecord);
             onInsert(ChatMessageModel.fromRealtimeRow(row));
           },
         )

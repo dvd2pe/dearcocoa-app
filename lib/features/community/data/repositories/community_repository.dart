@@ -31,13 +31,11 @@ class CommunityRepository {
     final viewerId = currentUserId;
     var query = _client
         .from('posts')
-        .select('*, profiles(display_name), post_likes(user_id), comments(post_id)')
-        .order('created_at', ascending: false)
-        .limit(50);
+        .select('*, profiles(display_name), post_likes(user_id), comments(post_id)');
     if (spaceId != null) {
       query = query.eq('space_id', spaceId);
     }
-    final rows = await query;
+    final rows = await query.order('created_at', ascending: false).limit(50);
     final list = rows as List<dynamic>;
     return list
         .map((e) => PostModel.fromJson(

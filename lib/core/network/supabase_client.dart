@@ -21,6 +21,9 @@ Future<void> initSupabase() async {
   if (!isSupabaseConfigured) return;
   try {
     await Supabase.initialize(url: kSupabaseUrl, anonKey: kSupabaseAnonKey);
+    // NOTE: supabase_flutter >= 2.13 renames anonKey -> publishableKey;
+    // the deprecated param still works on 2.x and keeps the pubspec
+    // constraint (^2.6.0) resolvable on Flutter 3.32.0.
   } catch (_) {
     // initialize() throws if already initialized (e.g. hot restart); ignore.
   }

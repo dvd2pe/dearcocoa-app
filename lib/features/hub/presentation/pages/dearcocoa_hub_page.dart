@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/network/supabase_client.dart';
+import '../../../chat/presentation/pages/chat_rooms_page.dart';
 import '../../../community/presentation/pages/community_page.dart';
 import '../../../events/presentation/pages/events_page.dart';
 import '../../../mood/presentation/pages/mood_tracker_page.dart';
 import '../../../reflections/presentation/pages/reflections_page.dart';
-import '../pages/chat_rooms_page.dart';
 import 'dearcocoa_auth_gate.dart';
 
 /// DearCocoa Hub: the entry point to the social wellness layer, styled

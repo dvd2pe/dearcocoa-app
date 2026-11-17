@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/network/supabase_client.dart';
 import '../../data/models/reflection_models.dart';
+import '../../data/repositories/reflections_repository.dart';
 import '../bloc/reflections_cubit.dart';
 
 /// DearCocoa AI Reflections: chat-like page over the `reflections`

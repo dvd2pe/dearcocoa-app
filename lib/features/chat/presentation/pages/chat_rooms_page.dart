@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/network/supabase_client.dart';
 import '../../data/repositories/chat_repository.dart';
-import '../bloc/chat_room_cubit.dart';
 import '../bloc/chat_rooms_cubit.dart';
 import 'chat_room_page.dart';
 

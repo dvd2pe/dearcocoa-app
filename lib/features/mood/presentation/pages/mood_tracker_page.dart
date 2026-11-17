@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/network/supabase_client.dart';
 import '../../data/models/mood_log_model.dart';
+import '../../data/repositories/mood_repository.dart';
 import '../bloc/mood_tracker_cubit.dart';
 
 /// DearCocoa Mood Tracker: daily check-in (1..5) + history + simple stats.

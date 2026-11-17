@@ -1,7 +1,8 @@
 # DearCocoa × DiaryVault — Piano di sviluppo e documento di ripresa
 
 > **Scopo di questo file**: se la conversazione si perde, TUTTO il contesto per riprendere lo sviluppo è qui.
-> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M9 fatti (CI analyze verde su 9e37065), M10 build APK v0.1.0-dearcocoa in corso**.
+> Ultimo aggiornamento: 2026-11-18. Stato: **M1-M10 COMPLETATI** - CI verde, release v0.1.0-dearcocoa con APK firmati verificati.
+Score stimato vs requisiti DearCocoa: **~75/100** (features social+AI+mood end-to-end su Supabase; mancano: setup progetto Supabase del cliente + secrets, sync entries cloud, build iOS, polish/test).
 > Known issue upstream: todo_reminder_typing_test IME-driven fallisce (Provider<NotesBloc> mancante nell'harness) - pre-esistente sul base, step test non-bloccante in CI.
 
 ---
@@ -123,7 +124,9 @@ Tabelle (tutte con `id uuid default gen_random_uuid()`, `created_at timestamptz 
 - [x] **M7 — Events**: listing + RSVP
 - [x] **M8 — Hub + integrazione UI**: pagina hub raggiungibile da home, entry points nei temi DiaryVault
 - [x] **M9 — CI**: workflow `analyze.yml` (Flutter 3.32.0, analyze+test) su push; fix errori
-- [ ] **M10 — Build APK+IPA CI**: estendere workflow build (APK release firmato; iOS `--no-codesign` su macos runner)
+- [x] **M10 — Build APK CI**: release `v0.1.0-dearcocoa` con 3 APK firmati verificati (arm64/armv7/x86_64, cert CN=DearCocoa SHA-256 `B0:EA:55:...:4F`, validi al 2056). Fix storico: `/releases/latest` non restituisce le prerelease -> il workflow ora fetcha la release per tag. iOS `--no-codesign` su macos runner: ANCORA DA FARE
+- [ ] **M10.5 — Secrets Supabase (CLIENTE)**: creare il progetto Supabase, applicare `supabase/migrations/0001_init.sql` + `supabase/seed.sql`, poi impostare i secrets repo `SUPABASE_URL` e `SUPABASE_ANON_KEY` e ri-triggerare `Build and Attach DearCocoa APKs` -> APK con social layer attiva. Nota: la build v0.1.0 attuale gira in modalita' local-only (chiavi vuote per design)
+- [ ] **M2.1 — Sync entries -> Supabase**: upsert/pull della tabella `entries` (schema pronto, `local_id` per idempotenza) dentro il flusso notes DiaryVault; mood_score compilato dal mood check-in esistente
 - [ ] **M11 — Chiusura**: README DearCocoa, doc API, checklist security (RLS reviste), screenshot
 
 ## 8. Come riprendere (checklist per il prossimo agente/utente)

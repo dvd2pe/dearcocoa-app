@@ -271,11 +271,17 @@ CMake 3.22.1 — NON la toolchain pinnata DiaryVault (3.32.0). I workflow del ve
   input costruito da distinigere da aspettative ARB), backup_restore (1), early_update (1, timing).
   ⚠️ STALLA per regola anti-stuck (2 tentativi): opzioni proposte al cliente (gate known-failures /
   deep-dive / gate analyze-only)
-- [ ] **M12.2** — Reset schema Supabase progetto "Dear Cocoa" (`sukxerupxdctdnegghwa`) →
-  backend/supabase del vecchio repo (13 tabelle + seed demo + storage + realtime publication);
-  SUPABASE_URL/ANON_KEY via dart-define nel build; default demo EN
-- [ ] **M12.3** — Edge Function `ai-reflection` deploy (in attesa OPENAI_API_KEY dal cliente — M3-OPENAI;
-  Edge Function supporta AI_BASE_URL per provider compatibili)
+- [x] **M12.2** — Reset schema Supabase "Dear Cocoa" COMPLETATO: 13 tabelle (profiles, journal_entries,
+  ai_reflections, ai_memory, groups, group_members, group_messages, space_posts, post_likes,
+  post_comments, events, event_rsvps, event_program) + RLS + 4 buckets (avatars, event-covers,
+  journal-photos, post-media) + realtime su 3 tabelle + seed 5 utenti demo (sofia, luca, giulia, marco,
+  elena — 7 utenti orfani vecchie seed rimossi; contenuti: 2 gruppi, 6 post, 3 eventi, chat, RSVP,
+  commenti). Fix seed: ON CONFLICT (email) WHERE is_sso_user=false (Supabase ha reso l'indice parziale).
+  Chiavi già baked nel client (defaultUrl/defaultAnonKey, pattern approvato)
+- [x] **M12.3** — Edge Function `ai-reflection` deployata via Supabase CLI (--use-api) e verificata
+  end-to-end: GET health {ok:true} con JWT sofia; POST senza chiave → errore pulito "AI_API_KEY non
+  configurata". Legacy `reflections` (setup DiaryVault) già assente; rimasta solo `delete-account`.
+  ⏳ In attesa AI_API_KEY dal cliente (M3-OPENAI) per riflessioni live
 - [ ] **M12.4** — Release **v0.3.0-dearcocoa**: APK release firmati (flavor global, split-per-abi
   arm64/armv7/x86_64), verifica firma v2/v3; appId `app.dearcocoa.mobile` ≠ dearcocoa-app → installabile
   a fianco, disinstallare la vecchia v1.0.39-demo (demo keystore diverso)

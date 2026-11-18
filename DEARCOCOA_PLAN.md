@@ -285,11 +285,21 @@ CMake 3.22.1 — NON la toolchain pinnata DiaryVault (3.32.0). I workflow del ve
   end-to-end: GET health {ok:true} con JWT sofia; POST senza chiave → errore pulito "AI_API_KEY non
   configurata". Legacy `reflections` (setup DiaryVault) già assente; rimasta solo `delete-account`.
   ⏳ In attesa AI_API_KEY dal cliente (M3-OPENAI) per riflessioni live
-- [ ] **M12.4** — Release **v0.3.0-dearcocoa**: APK release firmati (flavor global, split-per-abi
-  arm64/armv7/x86_64), verifica firma v2/v3; appId `app.dearcocoa.mobile` ≠ dearcocoa-app → installabile
-  a fianco, disinstallare la vecchia v1.0.39-demo (demo keystore diverso)
-- [ ] **M12.5** — Demo assets refresh: screenshot tutte le schermate + video stile Loom dalla base memex
-  (dispositivo EN)
+- [x] **M12.4** — Release **v0.3.0-dearcocoa** COMPLETATA (18/11): **dearcocoa-mobile** (pubblico,
+  linea primaria): https://github.com/dvd2pe/dearcocoa-mobile/releases/tag/v0.3.0-dearcocoa — 3 APK
+  firmati con split-per-abi: arm64-v8a 54.4 MB, armeabi-v7a 49.3 MB, x86_64 56.2 MB (dalla demo
+  255.8 MB fat: **-79%**). Build dispatch verde (run 44309056831), release automatica via gh CLI.
+  Backup/validazione: release identica su dvd2pe/dearcocoa (privato) con keystore committato
+  (tools/dearcocoa-release.jks, alias dearcocoa, pw in android/key-global.properties).
+  **M12-slim**: sherpa_onnx + MLKit rimossi (via sherpa morivano 7 fix-commit R5), STT via Groq API
+  (whisper-large-v3-turbo, chiave in Settings → Voice transcription; chiave ARRIVERÀ dal cliente),
+  LLM multimodale come fallback, memo vocali sempre salvati come audio. CI mobile verde con le
+  modifiche (1073+ test, parity l10n risolta con traduzioni 17 lingue). appId `app.dearcocoa.mobile`
+  ≠ dearcocoa-app → installabile a fianco; upgrade in-place dalla v1.0.39-demo (versionCode 125 > 124)
+- [~] **M12.5** — Demo assets refresh IN CORSO (18/11): tour automatico su emulatore Android (API 34,
+  x86_64) su actions-probe con screencap delle schermate principali (timeline, radial menu, community+
+  demo login, events, library, header) → video demo stile Loom con TTS italiano + ffmpeg; artefatto
+  `dearcocoa-screenshots` + MP4 in download/
 - [ ] **Backlog** — APK size: 255MB fat → split-per-abi (-60% circa), pruning modelli sherpa_onnx inutilizzati
 
 **Stato linee di codice**:

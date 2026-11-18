@@ -221,6 +221,19 @@ create index if not exists reflection_messages_session_idx
   on public.reflection_messages (session_id, created_at);
 
 -- ============================================================================
+-- Profile relationships per PostgREST embeds
+-- posts/comments/messages user_id punta a auth.users; per gli embed
+-- profiles(display_name) lato client serve ANCHE una FK verso public.profiles
+-- (PostgREST non attraversa auth.users).
+-- ============================================================================
+alter table public.posts add constraint posts_profile_fk
+  foreign key (user_id) references public.profiles (id) on delete cascade;
+alter table public.comments add constraint comments_profile_fk
+  foreign key (user_id) references public.profiles (id) on delete cascade;
+alter table public.messages add constraint messages_profile_fk
+  foreign key (user_id) references public.profiles (id) on delete cascade;
+
+-- ============================================================================
 -- updated_at trigger comune
 -- ============================================================================
 create or replace function public.set_updated_at()

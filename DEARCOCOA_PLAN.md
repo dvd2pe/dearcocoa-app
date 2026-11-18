@@ -43,6 +43,7 @@
 | Progetto precedente (SUPERATO) | `dvd2pe/dearcocoa` (privato) — base memex GPL, R1-R5, APK 255MB v1.0.39-demo. **Il 18/11 il cliente ha deciso: base = DiaryVault (MIT), UI/UX/colori/font invariati.** Il vecchio repo NON si tocca; si riusano solo i suoi doc di contesto: `REQUIREMENTS.md` (job posting verbatim + 5 domande proposal), `docs/REQUISITI_MVP.md`, `docs/SETUP_SUPABASE.md`, `backend/supabase/seed_demo.sql` (pattern creazione utenti demo auth) |
 | Minuti Actions | i minuti private del piano Free sono ESAURITI → tutta la CI gira su repo pubbliche |
 | Mirror upstream integrale | `dvd2pe/diaryvault` (105 branch, 28 tag, history completa) |
+| Mirror memex integrale | `dvd2pe/memex` (mirror di memex-lab/memex @ `d541b1b5`, 40 tag, main incluso) — riferimento UI/UX per M12 |
 | Repo build APK (base DiaryVault) | `dvd2pe/diaryvault-apk` — release `2.4.0` con 3 APK firmati (v2 cert CN=DiaryVault,O=dvd2pe,C=IT, SHA-256 `55:59:48:F7:44:D8:80:BC:34:59:7C:A9:BE:48:6C:EA:24:FB:25:2D:41:DE:82:3A:69:D6:BC:BA:2C:F9:2A:23`) |
 | Keystore DearCocoa (QUESTA repo) | alias `dearcocoa`, cert CN=DearCocoa,OU=Release,O=dvd2pe,C=IT, SHA-256 `B0:EA:55:A3:88:C0:55:98:F6:F1:44:19:8B:66:56:2C:06:2F:12:F9:D1:51:FC:F7:B5:F8:E8:F0:DF:B8:8E:4F`, password in Actions secrets (NON committare mai in chiaro) — nota: signature diversa dall'APK diaryvault-apk 2.4.0: disinstallare la vecchia prima di installare DearCocoa |
 | Token GitHub | fornito in chat dall'utente (`ghp_…f7k6x`) — **⚠️ revocare/ruotare a fine lavori** (esposto in chat) |
@@ -61,9 +62,16 @@
 - [festappnet/festapp](https://github.com/festappnet/festapp) (MIT) — eventi: per MVP solo programmi+RSVP (niente ticketing).
 - [hashirshoaeb/star_book](https://github.com/hashirshoaeb/star_book) (MIT) — UI pattern mood calendar.
 
-**Da NON usare nel codice (licenze)**: memex-lab/memex (GPL-3.0), CikeSeven/jotsy (GPL-3.0),
+**Da NON usare nel codice (licenze)**: CikeSeven/jotsy (GPL-3.0),
 lollipopkit/llmbox (GPL-3.0), dshukertjr/spot (LGPL, stale), mitchkoko/moonbase-template (Firebase),
-Coffiie/discord_open (Serverpod). Ispirazione concettuale ammessa, copia no.
+Coffiie/discord_open (Serverpod).
+
+**AGGIORNAMENTO 18/11 (sera) — decisione cliente**: memex-lab/memex (GPL-3.0) è ora autorizzato a copia diretta
+del codice ("copia pure, non mi interessa licenza" — verbatim, tracciato qui). Il cliente ha valutato la UI attuale
+negativa e vuole widget UI/UX in stile memex. Nota tecnica per onestà: il codice combinato sarà di fatto
+derivato GPL se ridistribuito; per uso interno/demo del cliente è irrilevante. Memex passa da "non usare" a
+riferimento primario UI/UX (vedi sezione 10). Il repo privato `dvd2pe/dearcocoa` (base memex, R1-R5) torna
+utile come riferimento di integrazione già compilato.
 
 ## 5. Architettura target
 
@@ -133,6 +141,11 @@ Tabelle (tutte con `id uuid default gen_random_uuid()`, `created_at timestamptz 
 - [x] **M11a — Demo assets (COMPLETATO)**: workflow `record_demo.yml` (dispatch) → emulatore Android su Actions, integration test `demo_walkthrough_test.dart` (20 schermate: welcome→guest→journal→hub sign-in→mood check-in→community like+post→chat send→event RSVP→reflections→journal synced), **20 screenshot allineati + video MP4 8min** (screenrecord su /data/local/tmp, fallback slideshow). Fix infrastruttura: AVD manuale (avdmanager hang), chmod /dev/kvm, cache Gradle (429 maven)
 - [ ] **M3-OPENAI — reflections live**: quando il cliente fornisce OPENAI_API_KEY -> deploy Edge Function `supabase/functions/reflections` (via Management API o CLI) + secret runtime; la storia demo è già seedata
 - [ ] **M11b — Chiusura**: README DearCocoa, doc API, checklist security (RLS reviste)
+- [ ] **M12 — Integrazione UI/UX memex (valutazione fatta, IN ATTESA DECISIONI CLIENTE)**: mirror
+  `dvd2pe/memex` @ `d541b1b5` pronto. Valutazione completa in sezione 10. Strategie A (restyle token),
+  B (restyle + widget chiave + capture foto/voce + insight cards), C (feature profonde: knowledge base,
+  agent system, health, maps). Decisioni richieste: strategia, identità visiva, schermate prioritarie,
+  scope capture, scope insight cards, biometric lock, release
 
 ## 8. Come riprendere (checklist per il prossimo agente/utente)
 
@@ -155,3 +168,61 @@ Tabelle (tutte con `id uuid default gen_random_uuid()`, `created_at timestamptz 
 - DiaryVault upstream: **MIT** — base libera per DearCocoa. Mantenere attribution nel README.
 - Ipotesi dichiarate: MVP = 1 lingua (EN), immagini solo avatar/copertina, pagamenti assenti,
   video live eventuali in fase 2 (fuori dai $20k).
+- 18/11 (sera): cliente autorizza esplicitamente copia codice da memex (GPL-3.0) — vedi sezione 4.
+
+## 10. Valutazione memex per integrazione UI/UX (18/11, sera)
+
+**Sorgente**: mirror `dvd2pe/memex` @ `d541b1b5` (memex-lab/memex, 843 star, attivo, GPL-3.0, Flutter).
+Locale: `/home/z/my-project/memex` (clone di lavoro) + `/home/z/my-project/memex-mirror.git` (bare).
+Precedente repo privato `dvd2pe/dearcocoa` (base memex, APK v1.0.39-demo) = riferimento integrazione già compilato.
+
+**Cosa è memex**: journal AI local-first — capture di frammenti (testo, foto, voce) organizzati da un
+sistema multi-agente in "timeline cards" strutturate + knowledge base + insights + AI companion.
+Stack: provider + go_router + drift (sqlite locale) + BYO LLM (OpenAI/Claude/Gemini/DeepSeek/Ollama,
+nessun server). 473 file Dart, ~227k LOC. NO social/community (differenza chiave: DearCocoa ha
+community/chat/eventi/mood social via Supabase — memex no → i punti di forza si complementano).
+
+**Design system memex** (`lib/ui/core/themes/`):
+- `app_colors.dart`: primary indigo `#5B6CFF`, bg `#F7F8FA`, card bianco, testo `#0A0A0A`/`#4A5565`/`#99A1AF`,
+  tab attivo `#1F1F1F`, semantic `#10B981`/`#F59E0B`/`#F43F5E`, gradient avatar a 12 stop
+- `app_text_styles.dart`: **Inter** (body) + **Bricolage Grotesque** (brand title) + PingFang SC (CJK),
+  scala tipografica completa display→body con height/letterSpacing curati
+- `app_shadows.dart` + `app_theme.dart`: ThemeData completo light/dark da seed indigo
+- Font **bundled offline** (`google_fonts/` TTF, niente fetch runtime)
+
+**Componenti UI copiabili ad alto valore** (path mirror):
+1. **Sistema timeline cards** (`ui/core/cards/templates/`): 20+ template in 5 famiglie —
+   entities (link/person/place/transaction/spec_sheet), quantifiable (**mood**/metric/progress/rating),
+   temporal (event/task/routine/duration/procedure), textual (quote/snippet/article/conversation/compact/insight_summary),
+   visual (gallery/snapshot/video/canvas) + `timeline_theme.dart` + `classic_card.dart`
+2. **Insight cards grafiche** (`ui/insight/widgets/insight_cards/`): 13 chart cards su fl_chart —
+   bar, bubble, composition, contrast, highlight, map, progress, radar, route_map, summary, timeline, trend
+3. **Main screen UX** (`ui/main_screen/widgets/`): `radial_menu` (menu radiale di capture), `ai_core_button`,
+   `main_bottom_bar`, `action_center_sheet`, `clipboard_preview_card`, `quick_recording_transcript` (voce→testo rapido)
+4. **Chat agent** (`ui/chat/widgets/`): agent_chat_dialog, open_super_agent_dialog, chat_history_screen
+5. **Extra**: share_poster_decorator + share_preview_dialog (condivisione come poster), app_lock (biometria
+   local_auth), character_avatar/dicebear_avatar, calendar_screen, demo_overlay, searchable_dropdown,
+   adaptive_icon, detail_page_layout
+6. **Feature capture** assenti in DearCocoa: foto allegati (wechat_assets_picker/photo_manager), registrazione
+   voce (record + audioplayers), health/pedometer, flutter_map + location, quick_actions (long-press icona),
+   share_handler (share intent in app)
+
+**Difficoltà integrazione (media, non banale)**: memex = provider + view_models + drift; DearCocoa =
+DiaryVault arch + supabase_flutter + quill vendored. I widget copiano bene MA la maggior parte dipende da
+view_models/provider memex → serve adattare al nostro state. Nuove dipendenze pub.dev da aggiungere:
+fl_chart, google_fonts, record, image_picker, photo_manager/wechat_assets_picker, local_auth, quick_actions,
+flutter_markdown, share_handler (tutte MIT/BSD salvo diverso indicato in pubspec).
+
+**Strategie proposte al cliente**:
+- **A — Restyle token (fast, ~1-2 giorni)**: adotta AppColors/Inter/Bricolage/shadows/scala tipografica su
+  TUTTE le schermate esistenti (DiaryVault theme overrides). Zero rischio architetturale, cambia il look ma
+  non i pattern di interazione
+- **B — Restyle + widget chiave (~3-5 giorni)**: A + radial_menu/ai_core_button/bottom bar memex sul main,
+  capture foto+voce nelle note, insight cards (subset 4-6 chart) per mood/reflections, share poster.
+  Massimo valore visivo/funzionale per effort — CONSIGLIATA
+- **C — Feature profonde (2-3+ settimane)**: B + knowledge base memex, agent system con skills, health,
+  maps, calendar. Alto rischio conflitto con Supabase/social esistenti; capire bene il costo prima
+
+**Decisioni richieste (7 domande poste al cliente)**: strategia A/B/C; identità visiva (look memex completo
+vs colori DearCocoa su componenti memex); schermate prioritarie; scope capture (foto/voce); scope insight
+cards; biometric lock; se tagliare release v0.3.0 subito dopo.

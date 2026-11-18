@@ -21,6 +21,8 @@ logcat_pat = re.compile(
     r"(\d\d)-(\d\d)\s+(\d\d):(\d\d):(\d\d)\.\d+.*DEMO_SCREEN:\s*(\S+)")
 iso_pat = re.compile(
     r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z?)\s.*DEMO_SCREEN:\s*(\S+)")
+# new test marker format: DEMO_SCREEN|<device_epoch_ms>|<name>
+epoch_pat = re.compile(r"DEMO_SCREEN\|(\d{13})\|(\S+)")
 
 markers = []
 current_year = datetime.now(timezone.utc).year
@@ -29,6 +31,10 @@ for path in marker_files:
     if not os.path.isfile(path):
         continue
     for line in open(path, encoding="utf-8", errors="replace"):
+        m = epoch_pat.search(line)
+        if m:
+            markers.append((int(m.group(1)) / 1000.0, m.group(2)))
+            continue
         m = logcat_pat.search(line)
         if m:
             month, day, hh, mm, ss, name = m.groups()

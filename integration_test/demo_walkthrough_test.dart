@@ -106,8 +106,9 @@ Future<void> main() async {
     final communityCard = find.text('Community Spaces').first;
     if (communityCard.evaluate().isNotEmpty) {
       await tester.tap(communityCard);
+      // the feed shows posts, not space names: wait for a likeable post card
       await _untilVisible(
-          tester, find.textContaining('Morning Rituals'), maxSec: 30);
+          tester, find.byIcon(Icons.favorite_border_rounded), maxSec: 30);
       _marker('09-community-feed');
       await _hold(tester, seconds: 4);
 
@@ -244,7 +245,10 @@ Future<void> main() async {
 
 void _log(String message) => debugPrint('DEMO_LOG: $message');
 
-void _marker(String name) => debugPrint('DEMO_SCREEN: $name');
+/// Marker with device epoch (ms): the aligner maps it to the screencap
+/// frames captured on the host (emulator clock is host-synced).
+void _marker(String name) =>
+    debugPrint('DEMO_SCREEN|${DateTime.now().toUtc().millisecondsSinceEpoch}|$name');
 
 /// Real-time hold: gives the host-side screencap loop time to capture the
 /// current screen cleanly (integration tests run on real wall-clock).
@@ -288,15 +292,12 @@ Future<void> _enterIntoLabeled(
   await tester.pump();
 }
 
-/// Navigates back (system back) and waits for the previous screen.
+/// Pops the top route via the root navigator (BackButton taps can miss when
+/// the button renders disabled during route transitions).
 Future<void> _back(WidgetTester tester) async {
-  final backButton = find.byType(BackButton);
-  if (backButton.evaluate().isNotEmpty) {
-    await tester.tap(backButton.first);
-  } else {
-    // simulate hardware back via the navigator (integration binding does not
-    // send system channels reliably on newer Android versions)
-    final navigatorState = tester.state<NavigatorState>(find.byType(Navigator).first);
+  final navigatorState =
+      tester.state<NavigatorState>(find.byType(Navigator).first);
+  if (navigatorState.canPop()) {
     navigatorState.pop();
   }
   await tester.pump(const Duration(milliseconds: 400));

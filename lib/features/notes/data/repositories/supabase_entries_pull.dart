@@ -23,9 +23,21 @@ final _log = printer("SupabaseEntriesPull");
 class SupabaseEntriesPull {
   SupabaseEntriesPull._();
 
-  /// Fetches cloud entries and stores the missing ones locally.
+  /// Serializes concurrent pulls (sign-in and hub init can both trigger it):
+  /// the Notes table has no PRIMARY KEY, so two racing pulls would insert
+  /// duplicates.
+  static Future<void>? _inFlight;
+
+  /// Fetches cloud entries and stores the missing ones locally (idempotent).
   /// Returns how many notes were added. Safe to call multiple times.
-  static Future<int> pullIntoLocalJournal() async {
+  static Future<int> pullIntoLocalJournal() {
+    if (_inFlight != null) return _inFlight!;
+    final task = _pull().whenComplete(() => _inFlight = null);
+    _inFlight = task;
+    return task;
+  }
+
+  static Future<int> _pull() async {
     final client = supabase;
     if (client == null) return 0;
     final user = client.auth.currentUser;
@@ -50,64 +62,67 @@ class SupabaseEntriesPull {
       final Database db = NotesLocalDataSource.database;
       var added = 0;
 
-      for (final raw in list) {
-        final row = raw as Map<String, dynamic>;
+      // single transaction: consistent existence checks + inserts
+      await db.transaction((txn) async {
+        for (final raw in list) {
+          final row = raw as Map<String, dynamic>;
 
-        // soft-deleted cloud entries are skipped
-        if (row['deleted_at'] != null) continue;
+          // soft-deleted cloud entries are skipped
+          if (row['deleted_at'] != null) continue;
 
-        final cloudId = row['id'] as String;
-        final exists = await db.query(
-          Notes.TABLE_NAME,
-          columns: [Notes.ID],
-          where: "${Notes.ID} = ?",
-          whereArgs: [cloudId],
-          limit: 1,
-        );
-        if (exists.isNotEmpty) continue;
-
-        final delta = (row['content_delta'] as List<dynamic>? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
-        final plainText = _deltaToPlainText(delta);
-        final createdAtMs = _isoToMs(row['created_at'] as String?);
-        final updatedAtMs = _isoToMs(row['updated_at'] as String?) ??
-            createdAtMs ??
-            DateTime.now().millisecondsSinceEpoch;
-
-        final noteMap = <String, dynamic>{
-          Notes.ID: cloudId,
-          Notes.TITLE: (row['title'] as String?) ?? '(untitled)',
-          Notes.BODY: jsonEncode(delta),
-          Notes.PLAIN_TEXT: plainText,
-          Notes.CREATED_AT:
-              createdAtMs ?? DateTime.now().millisecondsSinceEpoch,
-          Notes.LAST_MODIFIED: updatedAtMs,
-          Notes.DELETED: 0,
-          Notes.HASH: '',
-          Notes.AUTHOR_ID: authorId,
-          Notes.IS_ENCRYPTED: 0,
-        };
-
-        try {
-          await db.insert(Notes.TABLE_NAME, noteMap);
-        } catch (e) {
-          _log.e("failed to insert pulled note $cloudId: $e");
-          continue;
-        }
-
-        // tags (same table the app writes on note save)
-        for (final tag in (row['tags'] as List<dynamic>? ?? [])) {
-          final name = tag.toString().trim();
-          if (name.isEmpty) continue;
-          await db.insert(
-            Tags.TABLE_NAME,
-            {Tags.NOTE_ID: cloudId, Tags.NAME: name},
+          final cloudId = row['id'] as String;
+          final exists = await txn.query(
+            Notes.TABLE_NAME,
+            columns: [Notes.ID],
+            where: "${Notes.ID} = ?",
+            whereArgs: [cloudId],
+            limit: 1,
           );
-        }
+          if (exists.isNotEmpty) continue;
 
-        added++;
-      }
+          final delta = (row['content_delta'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .toList();
+          final plainText = _deltaToPlainText(delta);
+          final createdAtMs = _isoToMs(row['created_at'] as String?);
+          final updatedAtMs = _isoToMs(row['updated_at'] as String?) ??
+              createdAtMs ??
+              DateTime.now().millisecondsSinceEpoch;
+
+          final noteMap = <String, dynamic>{
+            Notes.ID: cloudId,
+            Notes.TITLE: (row['title'] as String?) ?? '(untitled)',
+            Notes.BODY: jsonEncode(delta),
+            Notes.PLAIN_TEXT: plainText,
+            Notes.CREATED_AT:
+                createdAtMs ?? DateTime.now().millisecondsSinceEpoch,
+            Notes.LAST_MODIFIED: updatedAtMs,
+            Notes.DELETED: 0,
+            Notes.HASH: '',
+            Notes.AUTHOR_ID: authorId,
+            Notes.IS_ENCRYPTED: 0,
+          };
+
+          try {
+            await txn.insert(Notes.TABLE_NAME, noteMap);
+          } catch (e) {
+            _log.e("failed to insert pulled note $cloudId: $e");
+            continue;
+          }
+
+          // tags (same table the app writes on note save)
+          for (final tag in (row['tags'] as List<dynamic>? ?? [])) {
+            final name = tag.toString().trim();
+            if (name.isEmpty) continue;
+            await txn.insert(
+              Tags.TABLE_NAME,
+              {Tags.NOTE_ID: cloudId, Tags.NAME: name},
+            );
+          }
+
+          added++;
+        }
+      });
 
       _log.i("pulled $added cloud entries into the local journal");
       return added;

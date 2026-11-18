@@ -16,6 +16,9 @@ sdkmanager() { "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "$@"; }
 
 echo "== KVM check =="
 ls -l /dev/kvm 2>/dev/null || echo "WARN: /dev/kvm not found (emulator will be slow)"
+if [ -e /dev/kvm ]; then
+  sudo chmod 666 /dev/kvm 2>/dev/null && echo "kvm permissions granted" || echo "WARN: chmod kvm failed"
+fi
 
 echo "== Install emulator bits =="
 SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"

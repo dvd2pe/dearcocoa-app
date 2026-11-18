@@ -262,11 +262,15 @@ CMake 3.22.1 — NON la toolchain pinnata DiaryVault (3.32.0). I workflow del ve
 (fix R5: free disk ~25GB, NDK install, CMake tarball Kitware + cmake.dir, desugaring).
 
 **Roadmap M12**:
-- [ ] **M12.1** — Nuovo repo PUBBLICO `dvd2pe/dearcocoa-mobile` = app/ + backend/ + docs tecniche
-  (SENZA reference/ e SENZA REQUIREMENTS/REQUISITI/audit-report: contengono job posting/proposta del
-  cliente). Fix workflow (`branches: ain]` corrotto in ci.yml e build-apk.yml — mai scattato su push perché
-  repo privato), signing keystore release DearCocoa via secrets (stesso keystore di dearcocoa-app),
-  CI analyze+test verde, prima build release via dispatch
+- [~] **M12.1** — Repo pubblico `dvd2pe/dearcocoa-mobile` CREATO e build APK release VERDE (2 run
+  success, keystore release da secrets, artifact `dearcocoa-release-apk`). Push protection: risolta
+  redigendo credenziali OAuth Google di memex (Gemini OAuth via dart-define, flusso API-key intatto).
+  CI: analyze OK con `--no-fatal-infos --no-fatal-warnings` (allineato upstream). Test: 15 fallimenti
+  stale da rename R2 → fix batch (canali com.memexlab.memex→app.dearcocoa.mobile, migration 19→20,
+  l10n Memex→DearCocoa, finder subclass-safe per .icon) → ridotti a 6: agent_background_status (4,
+  input costruito da distinigere da aspettative ARB), backup_restore (1), early_update (1, timing).
+  ⚠️ STALLA per regola anti-stuck (2 tentativi): opzioni proposte al cliente (gate known-failures /
+  deep-dive / gate analyze-only)
 - [ ] **M12.2** — Reset schema Supabase progetto "Dear Cocoa" (`sukxerupxdctdnegghwa`) →
   backend/supabase del vecchio repo (13 tabelle + seed demo + storage + realtime publication);
   SUPABASE_URL/ANON_KEY via dart-define nel build; default demo EN

@@ -141,11 +141,9 @@ Tabelle (tutte con `id uuid default gen_random_uuid()`, `created_at timestamptz 
 - [x] **M11a — Demo assets (COMPLETATO)**: workflow `record_demo.yml` (dispatch) → emulatore Android su Actions, integration test `demo_walkthrough_test.dart` (20 schermate: welcome→guest→journal→hub sign-in→mood check-in→community like+post→chat send→event RSVP→reflections→journal synced), **20 screenshot allineati + video MP4 8min** (screenrecord su /data/local/tmp, fallback slideshow). Fix infrastruttura: AVD manuale (avdmanager hang), chmod /dev/kvm, cache Gradle (429 maven)
 - [ ] **M3-OPENAI — reflections live**: quando il cliente fornisce OPENAI_API_KEY -> deploy Edge Function `supabase/functions/reflections` (via Management API o CLI) + secret runtime; la storia demo è già seedata
 - [ ] **M11b — Chiusura**: README DearCocoa, doc API, checklist security (RLS reviste)
-- [ ] **M12 — Integrazione UI/UX memex (valutazione fatta, IN ATTESA DECISIONI CLIENTE)**: mirror
-  `dvd2pe/memex` @ `d541b1b5` pronto. Valutazione completa in sezione 10. Strategie A (restyle token),
-  B (restyle + widget chiave + capture foto/voce + insight cards), C (feature profonde: knowledge base,
-  agent system, health, maps). Decisioni richieste: strategia, identità visiva, schermate prioritarie,
-  scope capture, scope insight cards, biometric lock, release
+- [ ] **M12 — Integrazione UI/UX memex (DECISIONI RICEVUTE → vedi sezione 11)**: base = vecchio repo
+  memex-based R1-R5 riusato in nuovo repo pubblico `dvd2pe/dearcocoa-mobile`; strategia C, look memex full,
+  tutte le schermate, foto+voce, 13 insight cards, biometric lock, release v0.3.0
 
 ## 8. Come riprendere (checklist per il prossimo agente/utente)
 
@@ -226,3 +224,63 @@ flutter_markdown, share_handler (tutte MIT/BSD salvo diverso indicato in pubspec
 **Decisioni richieste (7 domande poste al cliente)**: strategia A/B/C; identità visiva (look memex completo
 vs colori DearCocoa su componenti memex); schermate prioritarie; scope capture (foto/voce); scope insight
 cards; biometric lock; se tagliare release v0.3.0 subito dopo.
+
+## 11. Decisioni cliente 18/11 sera + roadmap M12 (base memex)
+
+**Risposte alle 7 domande**:
+- Strategia: **C — Feature deep**
+- Identità visiva: **look memex full** (indigo #5B6CFF, bg #F7F8FA, Inter + Bricolage Grotesque, ombre)
+- Schermate: **tutte** (Home/Journal, Community/Chat, Hub/Insights, Mood)
+- Capture: **foto + voce**
+- Insight cards: **set completo** (13)
+- Biometric lock: **sì**
+- Release: **v0.3.0** appena integrazione verde
+- Remark verbatim: "Copia 1:1 l'interfaccia memex, l'unica cosa che mi spaventa è l'integrazione ai,
+  precedentemente in generale rimanevamo molto stuck e non vorrei rimanere stuck, se qualcosa non riesci
+  dopo due tentativi, ti blocchi e mi dici soluzioni, se bypassarla o altro, mi domandi. Per me importante
+  è portare memex come base, implementare tutte le features di diaryvault + memex assieme (leggi i repo,
+  tutte le funzionalità le teniamo (ie localizzazione)) ma se non comportano problemi e non clashano"
+
+**REGOLE OPERATIVE fissate dal cliente**:
+1. **ANTI-STUCK**: qualcosa fallisce dopo 2 tentativi → STOP, presentare opzioni (fix/bypass) e CHIEDERE
+2. **APK sempre `--release`, MAI debug** (richiesta esplicita 18/11)
+3. Feature DiaryVault+memex si tengono TUTTE salvo clash; l10n resta (18 lingue memex), default demo EN
+
+**RILIEVO CHIAVE**: il vecchio repo privato `dvd2pe/dearcocoa` è GIÀ "memex come base + feature DiaryVault"
+(R1-R5 completati 17/11: base compilata analyze 0 err/1073 test, rename dearcocoa, Supabase
+community/gruppi/eventi realtime, mood+reminder+TTS, APK demo 255.8MB release firmato). Il remark del
+cliente descrive esattamente quello stato → **si riusa quella base**, non si riparte dal mirror pulito.
+
+**Copertura già pronta nella base R1-R5** (nessuna riscrittura): UI memex 1:1 (radial menu, timeline cards
+20+, insight cards 13 su fl_chart, knowledge base, agenti+skills BYO-LLM 17 provider, app lock biometrico,
+capture foto+voce, health, maps, calendar, 18 lingue, character AI companion) + backend completo (13 tabelle
++RLS+storage+realtime+trigger, seed 5 utenti demo, edge function ai-reflection) + DemoLoginScreen 5 account
+one-tap + mood/reminder/TTS.
+
+**Toolchain switch (importante)**: base memex richiede Flutter 3.35.5 / JDK 21 / AGP 8.11.1 / NDK 27.3 /
+CMake 3.22.1 — NON la toolchain pinnata DiaryVault (3.32.0). I workflow del vecchio repo la gestiscono
+(fix R5: free disk ~25GB, NDK install, CMake tarball Kitware + cmake.dir, desugaring).
+
+**Roadmap M12**:
+- [ ] **M12.1** — Nuovo repo PUBBLICO `dvd2pe/dearcocoa-mobile` = app/ + backend/ + docs tecniche
+  (SENZA reference/ e SENZA REQUIREMENTS/REQUISITI/audit-report: contengono job posting/proposta del
+  cliente). Fix workflow (`branches: ain]` corrotto in ci.yml e build-apk.yml — mai scattato su push perché
+  repo privato), signing keystore release DearCocoa via secrets (stesso keystore di dearcocoa-app),
+  CI analyze+test verde, prima build release via dispatch
+- [ ] **M12.2** — Reset schema Supabase progetto "Dear Cocoa" (`sukxerupxdctdnegghwa`) →
+  backend/supabase del vecchio repo (13 tabelle + seed demo + storage + realtime publication);
+  SUPABASE_URL/ANON_KEY via dart-define nel build; default demo EN
+- [ ] **M12.3** — Edge Function `ai-reflection` deploy (in attesa OPENAI_API_KEY dal cliente — M3-OPENAI;
+  Edge Function supporta AI_BASE_URL per provider compatibili)
+- [ ] **M12.4** — Release **v0.3.0-dearcocoa**: APK release firmati (flavor global, split-per-abi
+  arm64/armv7/x86_64), verifica firma v2/v3; appId `app.dearcocoa.mobile` ≠ dearcocoa-app → installabile
+  a fianco, disinstallare la vecchia v1.0.39-demo (demo keystore diverso)
+- [ ] **M12.5** — Demo assets refresh: screenshot tutte le schermate + video stile Loom dalla base memex
+  (dispositivo EN)
+- [ ] **Backlog** — APK size: 255MB fat → split-per-abi (-60% circa), pruning modelli sherpa_onnx inutilizzati
+
+**Stato linee di codice**:
+- `dvd2pe/dearcocoa-app` (DiaryVault-based, release v0.2.0): CONGELATA come fallback/demo parallela
+- `dvd2pe/dearcocoa` (privato, memex-based R1-R5): origine, resta privato (contiene reference/ con repo
+  senza licenza + job posting del cliente)
+- `dvd2pe/dearcocoa-mobile` (pubblico, memex-based): **NUOVA LINEA PRIMARIA** per CI/CD e release

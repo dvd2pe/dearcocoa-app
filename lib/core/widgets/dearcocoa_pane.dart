@@ -19,9 +19,11 @@ class DearCocoaPane extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
             child: Row(
@@ -115,6 +117,7 @@ class DearCocoaPane extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }

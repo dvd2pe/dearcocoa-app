@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Aligns DEMO_SCREEN markers (logcat) to screencap frames and names them.
+"""Aligns DEMO_SCREEN markers to screencap frames and names them.
 
-Usage: align_demo_screens.py <logcat.txt> <shots_dir> <out_dir>
-Device clock is synced to the host on GitHub Actions; each named screenshot
-is the first frame captured at/after its marker (small clock drift tolerated).
+Usage: align_demo_screens.py <shots_dir> <out_dir> [marker_files...]
+
+Marker files: logcat.txt (device time `MM-DD HH:MM:SS.xxx`) and/or
+flutter_test_log.txt (runner stdout with ISO-8601 UTC timestamps).
+Each named screenshot is the first frame captured at/after its marker.
 """
 import os
 import re
@@ -11,35 +13,52 @@ import shutil
 import sys
 from datetime import datetime, timezone
 
-log_path, shots_dir, out_dir = sys.argv[1:4]
+shots_dir, out_dir = sys.argv[1], sys.argv[2]
+marker_files = sys.argv[3:]
 os.makedirs(out_dir, exist_ok=True)
 
-marker_pat = re.compile(
+logcat_pat = re.compile(
     r"(\d\d)-(\d\d)\s+(\d\d):(\d\d):(\d\d)\.\d+.*DEMO_SCREEN:\s*(\S+)")
+iso_pat = re.compile(
+    r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z?)\s.*DEMO_SCREEN:\s*(\S+)")
 
-# markers in chronological order: (epoch, name)
 markers = []
 current_year = datetime.now(timezone.utc).year
-for line in open(log_path, encoding="utf-8", errors="replace"):
-    m = marker_pat.search(line)
-    if not m:
-        continue
-    month, day, hh, mm, ss, name = m.groups()
-    try:
-        dt = datetime(current_year, int(month), int(day),
-                      int(hh), int(mm), int(ss), tzinfo=timezone.utc)
-    except ValueError:
-        continue
-    markers.append((dt.timestamp(), name))
 
-# keep the first occurrence of each marker name
+for path in marker_files:
+    if not os.path.isfile(path):
+        continue
+    for line in open(path, encoding="utf-8", errors="replace"):
+        m = logcat_pat.search(line)
+        if m:
+            month, day, hh, mm, ss, name = m.groups()
+            try:
+                dt = datetime(current_year, int(month), int(day),
+                              int(hh), int(mm), int(ss), tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            markers.append((dt.timestamp(), name))
+            continue
+        m = iso_pat.search(line)
+        if m:
+            ts, name = m.groups()
+            if ts.endswith("Z"):
+                ts = ts[:-1] + "+00:00"
+            try:
+                dt = datetime.fromisoformat(ts)
+            except ValueError:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            markers.append((dt.timestamp(), name))
+
+# keep the first occurrence of each marker name, chronological
 seen = {}
 for epoch, name in markers:
     if name not in seen:
         seen[name] = epoch
 markers = sorted(seen.items(), key=lambda kv: kv[1])
 
-# frames sorted by epoch
 frames = []
 for f in sorted(os.listdir(shots_dir)):
     if f.startswith("f_") and f.endswith(".png"):
@@ -49,11 +68,11 @@ for f in sorted(os.listdir(shots_dir)):
             continue
 frames.sort()
 
+print(f"marker files: {marker_files}")
 print(f"markers: {len(markers)} | frames: {len(frames)}")
 
 missing = []
 for name, epoch in markers:
-    # first frame at/after the marker (>= epoch - 2s), nearest otherwise
     after = [(ts, f) for ts, f in frames if ts >= epoch - 2.0]
     if after:
         best = min(after, key=lambda tf: abs(tf[0] - epoch))

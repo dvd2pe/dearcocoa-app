@@ -38,6 +38,24 @@ Future<void> main() async {
     _marker('04-journal-panes');
     await _hold(tester, seconds: 3);
 
+    // the DearCocoa pane is the LAST page of the dashboard carousel:
+    // swipe left until the hub button is reachable
+    try {
+      final pageView = find.byType(PageView);
+      if (pageView.evaluate().isNotEmpty) {
+        await tester.dragUntilVisible(
+          find.text('Open DearCocoa hub'),
+          pageView.first,
+          const Offset(-500, 0),
+          maxIteration: 5,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        _log('carousel reached DearCocoa pane');
+      }
+    } catch (e) {
+      _log('carousel swipe skipped: $e');
+    }
+
     // ------------------------------------- open DearCocoa hub (sign in)
     final hubButton = find.text('Open DearCocoa hub');
     if (hubButton.evaluate().isNotEmpty) {
@@ -195,6 +213,20 @@ Future<void> main() async {
     // back to the home journal, which is now synced with the cloud entries
     await _back(tester);
     await _hold(tester, seconds: 2);
+
+    // swipe the carousel back to the first (journal) pane
+    try {
+      final pageView = find.byType(PageView);
+      if (pageView.evaluate().isNotEmpty) {
+        for (var i = 0; i < 4; i++) {
+          await tester.fling(pageView.first, const Offset(600, 0), 1000);
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+      }
+    } catch (e) {
+      _log('carousel swipe back skipped: $e');
+    }
 
     // ------------------------------- home journal now synced with cloud
     _marker('19-journal-synced');

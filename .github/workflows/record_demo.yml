@@ -54,10 +54,10 @@ jobs:
       - name: Align screenshots to walkthrough markers
         if: always()
         run: |
-          if [ -f demo/logcat.txt ]; then
-            python3 .github/scripts/align_demo_screens.py demo/logcat.txt demo/shots demo/screenshots
+          if [ -d demo/shots ]; then
+            python3 .github/scripts/align_demo_screens.py demo/shots demo/screenshots demo/logcat.txt demo/flutter_test_log.txt
           else
-            echo "no logcat.txt, skipping alignment"
+            echo "no shots dir, skipping alignment"
           fi
 
       - name: Concatenate video segments

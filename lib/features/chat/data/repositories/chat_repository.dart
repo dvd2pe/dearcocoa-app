@@ -59,6 +59,7 @@ class ChatRepository {
   Future<void> sendMessage(String roomId, String content) async {
     await _client.from('messages').insert({
       'room_id': roomId,
+      'user_id': currentUserId,
       'content': content,
     });
   }

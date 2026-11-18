@@ -377,6 +377,35 @@ create policy reflection_messages_owner on public.reflection_messages
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ============================================================================
+-- user_id auto-fill da auth.uid() (RLS with check auth.uid() = user_id):
+-- i client non devono passare user_id esplicito per gli insert.
+-- ============================================================================
+create or replace function public.set_user_id_from_auth()
+returns trigger language plpgsql as $$
+begin
+  if new.user_id is null then
+    new.user_id := auth.uid();
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_posts_set_user_id on public.posts;
+create trigger trg_posts_set_user_id before insert on public.posts
+  for each row execute function public.set_user_id_from_auth();
+drop trigger if exists trg_comments_set_user_id on public.comments;
+create trigger trg_comments_set_user_id before insert on public.comments
+  for each row execute function public.set_user_id_from_auth();
+drop trigger if exists trg_messages_set_user_id on public.messages;
+create trigger trg_messages_set_user_id before insert on public.messages
+  for each row execute function public.set_user_id_from_auth();
+drop trigger if exists trg_mood_logs_set_user_id on public.mood_logs;
+create trigger trg_mood_logs_set_user_id before insert on public.mood_logs
+  for each row execute function public.set_user_id_from_auth();
+drop trigger if exists trg_entries_set_user_id on public.entries;
+create trigger trg_entries_set_user_id before insert on public.entries
+  for each row execute function public.set_user_id_from_auth();
+
+-- ============================================================================
 -- Storage buckets
 -- ============================================================================
 insert into storage.buckets (id, name, public)

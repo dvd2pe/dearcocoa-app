@@ -54,6 +54,7 @@ class CommunityRepository {
   }) async {
     await _client.from('posts').insert({
       'space_id': spaceId,
+      'user_id': currentUserId,
       'body': body,
       if (title != null && title.isNotEmpty) 'title': title,
       'is_anonymous': isAnonymous,
@@ -101,6 +102,7 @@ class CommunityRepository {
   Future<void> addComment(String postId, String body) async {
     await _client.from('comments').insert({
       'post_id': postId,
+      'user_id': currentUserId,
       'body': body,
     });
   }

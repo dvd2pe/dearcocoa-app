@@ -35,6 +35,7 @@ class MoodRepository {
     String? entryId,
   }) async {
     final data = <String, dynamic>{
+      'user_id': currentUserId,
       'mood_score': moodScore,
       if (note != null && note.isNotEmpty) 'note': note,
       if (entryId != null) 'entry_id': entryId,

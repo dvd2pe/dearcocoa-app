@@ -26,7 +26,7 @@ class SupabaseEntriesPull {
   /// Serializes concurrent pulls (sign-in and hub init can both trigger it):
   /// the Notes table has no PRIMARY KEY, so two racing pulls would insert
   /// duplicates.
-  static Future<void>? _inFlight;
+  static Future<int>? _inFlight;
 
   /// Fetches cloud entries and stores the missing ones locally (idempotent).
   /// Returns how many notes were added. Safe to call multiple times.

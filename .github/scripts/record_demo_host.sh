@@ -104,7 +104,7 @@ CAP_PID=$!
 
 (
   for i in 1 2 3 4; do
-    "$ADB" shell screenrecord --time-limit 170 --bit-rate 6000000 "/sdcard/demo_$i.mp4" || true
+    "$ADB" shell screenrecord --time-limit 170 --bit-rate 6000000 "/data/local/tmp/demo_$i.mp4" || true
   done
 ) &
 REC_PID=$!
@@ -131,7 +131,7 @@ sleep 4
 echo "== Collect logs and videos =="
 "$ADB" logcat -d > "$ART_DIR/logcat.txt" 2>/dev/null || true
 for i in 1 2 3 4; do
-  "$ADB" pull "/sdcard/demo_$i.mp4" "$ART_DIR/" 2>/dev/null || true
+  "$ADB" pull "/data/local/tmp/demo_$i.mp4" "$ART_DIR/" 2>/dev/null || true
 done
 ls -la "$ART_DIR"
 

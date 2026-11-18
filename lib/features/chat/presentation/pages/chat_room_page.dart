@@ -15,10 +15,14 @@ class ChatRoomPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final room = ModalRoute.of(context)!.settings.arguments as ChatRoomModel;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is! ChatRoomModel) {
+      // route can rebuild without arguments mid-transition; keep it inert
+      return const Scaffold(body: SizedBox.shrink());
+    }
     return BlocProvider<ChatRoomCubit>(
-      create: (_) => ChatRoomCubit(ChatRepository(), room.id)..load(),
-      child: _ChatRoomView(room: room),
+      create: (_) => ChatRoomCubit(ChatRepository(), args.id)..load(),
+      child: _ChatRoomView(room: args),
     );
   }
 }

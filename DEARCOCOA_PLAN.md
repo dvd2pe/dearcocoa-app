@@ -262,15 +262,18 @@ CMake 3.22.1 — NON la toolchain pinnata DiaryVault (3.32.0). I workflow del ve
 (fix R5: free disk ~25GB, NDK install, CMake tarball Kitware + cmake.dir, desugaring).
 
 **Roadmap M12**:
-- [~] **M12.1** — Repo pubblico `dvd2pe/dearcocoa-mobile` CREATO e build APK release VERDE (2 run
-  success, keystore release da secrets, artifact `dearcocoa-release-apk`). Push protection: risolta
-  redigendo credenziali OAuth Google di memex (Gemini OAuth via dart-define, flusso API-key intatto).
-  CI: analyze OK con `--no-fatal-infos --no-fatal-warnings` (allineato upstream). Test: 15 fallimenti
-  stale da rename R2 → fix batch (canali com.memexlab.memex→app.dearcocoa.mobile, migration 19→20,
-  l10n Memex→DearCocoa, finder subclass-safe per .icon) → ridotti a 6: agent_background_status (4,
-  input costruito da distinigere da aspettative ARB), backup_restore (1), early_update (1, timing).
-  ⚠️ STALLA per regola anti-stuck (2 tentativi): opzioni proposte al cliente (gate known-failures /
-  deep-dive / gate analyze-only)
+- [x] **M12.1** — Repo pubblico `dvd2pe/dearcocoa-mobile` COMPLETATO: CI VERDE (analyze +
+  1073/1073 test pass su a27dc08), build APK release VERDE (keystore release DearCocoa da secrets,
+  artifact `dearcocoa-release-apk`). Deep-dive su richiesta cliente: risolti tutti i 15 test stale —
+  cause reali: default labels produzione 'Memex Agent' (agent_background_status.dart 210-212),
+  canali mock com.memexlab.memex→app.dearcocoa.mobile, drift migration 19→20 (R4 mood), l10n ext
+  demo copy (19 file), finder byType vs private subclass .icon (FilledButton.icon/ElevatedButton.icon),
+  early_update pump-loop deterministico per CI lenta. **Bonus rename 240 stringhe user-visible:**
+  system prompt agenti AI (memex_skill_host_agent + super_agent → "DearCocoa Agent"), 19 l10n ext
+  (welcome/demo/OAuth), Kotlin notifiche (AgentBackgroundService/ChannelHandler), iOS Info.plist
+  permessi, getter sharedFromMemex preservato (API). Push protection: credenziali OAuth Google memex
+  redigite via dart-define (flusso API-key intatto). CI aligned upstream: --no-fatal-infos
+  --no-fatal-warnings. Workflow: push=fat APK conferma, dispatch=split-per-abi (3 APK)
 - [x] **M12.2** — Reset schema Supabase "Dear Cocoa" COMPLETATO: 13 tabelle (profiles, journal_entries,
   ai_reflections, ai_memory, groups, group_members, group_messages, space_posts, post_likes,
   post_comments, events, event_rsvps, event_program) + RLS + 4 buckets (avatars, event-covers,
